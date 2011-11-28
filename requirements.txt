@@ -1,0 +1,5 @@
+argparse==1.2.1
+ipython==0.11
+requests==0.8.3
+simplejson==2.2.1
+wsgiref==0.1.2
