@@ -66,11 +66,13 @@ import simplejson as json
 from varda import SERVER_ROOT
 
 
-def add_sample(name, pool_size=1):
+def add_sample(name, coverage_threshold=8, pool_size=1):
     """
     Add sample to the database.
+
+    Todo: Handle requests.exceptions.ConnectionError
     """
-    data={'name': name, 'pool_size': pool_size}
+    data={'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
     r = requests.post(SERVER_ROOT + '/samples', data)
     #print 'Added sample to the database with sample id %d' % sample_id
     print r.content
@@ -134,10 +136,11 @@ def import_vcf(sample_id, vcf, name, use_genotypes=True):
     data_source = json.loads(r.content)['data_source']
     data = {'data_source': data_source['id']}
     r = requests.post(SERVER_ROOT + '/samples/' + str(sample_id) + '/observations', data=data)
-    poll_location = r.headers['location']
-    while True:
-        r = requests.get(poll_location)
-        print r.content
+    #poll_location = r.headers['location']
+    #while True:
+    #    r = requests.get(poll_location)
+    #    print r.content
+    print r.content
 
 
 if __name__ == '__main__':
@@ -148,8 +151,10 @@ if __name__ == '__main__':
     parser_add = subparsers.add_parser('add', help='add sample')
     group = parser_add.add_argument_group()
     group.add_argument('name', metavar='NAME', type=str, help='sample name')
+    parser_add.add_argument('-c', dest='coverage_threshold', default=8, type=int,
+                            help='coverage threshold for variant calls (default: 8)')
     parser_add.add_argument('-p', dest='pool_size', default=1, type=int,
-                        help='number of individuals in sample (default: 1)')
+                            help='number of individuals in sample (default: 1)')
 
     parser_show = subparsers.add_parser('show', help='show sample')
     group = parser_show.add_argument_group()
@@ -185,7 +190,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     if args.subcommand == 'add':
-        add_sample(args.name, pool_size=args.pool_size)
+        add_sample(args.name, coverage_threshold=args.coverage_threshold, pool_size=args.pool_size)
 
     if args.subcommand == 'show':
         show_sample(args.sample_id)
