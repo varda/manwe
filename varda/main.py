@@ -58,12 +58,22 @@ Copyright (c) 2011 Martijn Vermaat <m.vermaat.hg@lumc.nl>
 
 
 import sys
+from time import sleep
 
 import argparse
-import requests
+from requests import get, post, codes
 import simplejson as json
 
 from varda import SERVER_ROOT
+
+
+def response_error(response):
+    try:
+        error = json.loads(response.content)['error']
+        sys.stderr.write('Got error from server: %s\n' % error['message'])
+    except (KeyError, json.JSONDecodeError):
+        sys.stderr.write('Got unexpected response from server\n')
+    sys.exit(1)
 
 
 def add_sample(name, coverage_threshold=8, pool_size=1):
@@ -72,37 +82,48 @@ def add_sample(name, coverage_threshold=8, pool_size=1):
 
     Todo: Handle requests.exceptions.ConnectionError
     """
-    data={'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
-    r = requests.post(SERVER_ROOT + '/samples', data)
-    #print 'Added sample to the database with sample id %d' % sample_id
-    print r.content
+    data = {'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
+    response = post(SERVER_ROOT + '/samples', data)
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    response = get(response.headers['location'])
+    sample = json.loads(response.content)['sample']
+    print 'Added sample to the database with sample id %d' % sample['id']
+    return
 
 
-def remove_sample(sample_id, only_variants=False):
-    """
-    Remove sample from the database.
-    """
-    db = Db.NGSDb()
-    sample = db.getSample(sample_id)
-
-    if not sample:
-        sys.stderr.write('No sample with sample id %d\n' % sample_id)
-        sys.exit(1)
-
-    db.deleteSample(sample_id, only_variants)
-    if only_variants:
-        print 'Removed variant observations from the database with sample id %d' % sample_id
-    else:
-        print 'Removed sample from the database with sample id %d' % sample_id
+#def remove_sample(sample_id, only_variants=False):
+#    """
+#    Remove sample from the database.
+#    """
+#    db = Db.NGSDb()
+#    sample = db.getSample(sample_id)
+#
+#    if not sample:
+#        sys.stderr.write('No sample with sample id %d\n' % sample_id)
+#        sys.exit(1)
+#
+#    db.deleteSample(sample_id, only_variants)
+#    if only_variants:
+#        print 'Removed variant observations from the database with sample id %d' % sample_id
+#    else:
+#        print 'Removed sample from the database with sample id %d' % sample_id
 
 
 def list_samples():
     """
     List samples in the database.
     """
-    r = requests.get(SERVER_ROOT + '/samples')
+    response = get(SERVER_ROOT + '/samples')
+    try:
+        samples = json.loads(response.content)['samples']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
     print '  id  pool size  name'
-    for sample in json.loads(r.content)['samples']:
+    for sample in samples:
         print '%4.i  %9.i  %s' % (sample['id'], sample['pool_size'], sample['name'])
 
 
@@ -110,37 +131,98 @@ def show_sample(sample_id):
     """
     Show information on a sample.
     """
-    r = requests.get(SERVER_ROOT + '/samples/' + str(sample_id))
+    response = get(SERVER_ROOT + '/samples/' + str(sample_id))
 
-    if r.status_code == requests.codes.ok:
-        sample = json.loads(r.content)['sample']
-        print 'Sample id:  %d' % sample['id']
-        print 'Date added: %s' % sample['added']
-        print 'Name:       %s' % sample['name']
-        print 'Poolsize:   %s' % sample['pool_size']
-    else:
-        sys.stderr.write('No sample with sample id %d\n' % sample_id)
-        sys.exit(1)
+    try:
+        sample = json.loads(response.content)['sample']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    print 'Sample id:          %d' % sample['id']
+    print 'Date added:         %s' % sample['added']
+    print 'Name:               %s' % sample['name']
+    print 'Coverage threshold: %s' % sample['coverage_threshold']
+    print 'Poolsize:           %s' % sample['pool_size']
 
 
 def import_vcf(sample_id, vcf, name, use_genotypes=True):
     """
     Import variants from VCF file.
     """
-    data = {'name': name}
+    data = {'name': name, 'filetype': 'vcf'}
     files = {'data': vcf}
-    r = requests.post(SERVER_ROOT + '/data_sources', data=data, files=files)
-    print r.headers['location']
-    r = requests.get(r.headers['location'])
-    print r.content
-    data_source = json.loads(r.content)['data_source']
+    response = post(SERVER_ROOT + '/data_sources', data=data, files=files)
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    response = get(response.headers['location'])
+    data_source = json.loads(response.content)['data_source']
+
     data = {'data_source': data_source['id']}
-    r = requests.post(SERVER_ROOT + '/samples/' + str(sample_id) + '/observations', data=data)
-    #poll_location = r.headers['location']
-    #while True:
-    #    r = requests.get(poll_location)
-    #    print r.content
-    print r.content
+    response = post(SERVER_ROOT + '/samples/' + str(sample_id) + '/observations', data=data)
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    wait_location = response.headers['location']
+
+    while True:
+        response = get(wait_location)
+        try:
+            observations = json.loads(response.content)['observations']
+        except (KeyError, json.JSONDecodeError):
+            response_error(response)
+        if observations['ready']:
+            print 'Imported VCF file'
+            break
+        sleep(3)
+
+
+def annotate_vcf(vcf, name):
+    """
+    Annotate variants in a VCF file.
+    """
+    data = {'name': name, 'filetype': 'vcf'}
+    files = {'data': vcf}
+    response = post(SERVER_ROOT + '/data_sources', data=data, files=files)
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    response = get(response.headers['location'])
+    data_source = json.loads(response.content)['data_source']
+
+    response = post(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations')
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    wait_location = response.headers['location']
+
+    annotation_id = None
+
+    while True:
+        response = get(wait_location)
+        try:
+            annotation = json.loads(response.content)['annotation']
+        except (KeyError, json.JSONDecodeError):
+            response_error(response)
+        if annotation['ready']:
+            annotation_id = annotation['id']
+            break
+        sleep(3)
+
+    response = get(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations/' + annotation_id)
+
+    try:
+        annotation = json.loads(response.content)['annotation']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    print 'Annotation id: %d' % annotation['id']
+    print 'Data source    %s' % annotation['data_source']
+    print 'Date added:    %s' % annotation['added']
 
 
 if __name__ == '__main__':
