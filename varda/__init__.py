@@ -32,4 +32,4 @@ __homepage__ = 'http://www.humgen.nl'
 API_VERSION = 1
 
 
-SERVER_ROOT = 'http://127.0.0.1:5000/'
+SERVER_ROOT = 'http://127.0.0.1:5000'

@@ -213,16 +213,17 @@ def annotate_vcf(vcf, name):
             break
         sleep(3)
 
-    response = get(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations/' + annotation_id)
+    response = get(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations/' + str(annotation_id))
 
     try:
-        annotation = json.loads(response.content)['annotation']
+        #annotation = json.loads(response.content)['annotation']
+        print response.content
     except (KeyError, json.JSONDecodeError):
         response_error(response)
 
-    print 'Annotation id: %d' % annotation['id']
-    print 'Data source    %s' % annotation['data_source']
-    print 'Date added:    %s' % annotation['added']
+    #print 'Annotation id: %d' % annotation['id']
+    #print 'Data source    %s' % annotation['data_source']
+    #print 'Date added:    %s' % annotation['added']
 
 
 if __name__ == '__main__':
@@ -264,6 +265,12 @@ if __name__ == '__main__':
     parser_import.add_argument('-n', '--no-genotypes', dest='no_genotypes',
                                action='store_true', help='don\'t use genotypes')
 
+    parser_annotate = subparsers.add_parser('annotate', help='annotate variants')
+    group = parser_annotate.add_argument_group()
+    group.add_argument('vcf', metavar='VCF_FILE', type=argparse.FileType('r'),
+                       help='file in VCF 4.1 format to annotate variants from')
+    group.add_argument('name', metavar='NAME', type=str, help='data source name')
+
     args = parser.parse_args()
 
     if args.subcommand in ('show', 'remove', 'import') \
@@ -285,3 +292,6 @@ if __name__ == '__main__':
 
     if args.subcommand == 'import':
         import_vcf(args.sample_id, args.vcf, args.name, not args.no_genotypes)
+
+    if args.subcommand == 'annotate':
+        annotate_vcf(args.vcf, args.name)
