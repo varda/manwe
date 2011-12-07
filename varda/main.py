@@ -61,10 +61,37 @@ import sys
 from time import sleep
 
 import argparse
-from requests import get, post, codes
+import requests
+from requests import codes
 import simplejson as json
 
-from varda import SERVER_ROOT
+from varda import API_ROOT, VARDA_USER, VARDA_PASSWORD
+
+
+def get(location, *args, **kwargs):
+    """
+    Make a HTTP GET request to the server.
+
+    This is just a convenience wrapper for requests.get where we prepend the
+    API root to the requested location and add HTTP Basic Authentication.
+    """
+    kwargs['auth'] = (VARDA_USER, VARDA_PASSWORD)
+    if location.startswith('/'):
+        location = API_ROOT + location
+    return requests.get(location, *args, **kwargs)
+
+
+def post(location, *args, **kwargs):
+    """
+    Make a HTTP POST request to the server.
+
+    This is just a convenience wrapper for requests.get where we prepend the
+    API root to the requested location and add HTTP Basic Authentication.
+    """
+    kwargs['auth'] = (VARDA_USER, VARDA_PASSWORD)
+    if location.startswith('/'):
+        location = API_ROOT + location
+    return requests.post(location, *args, **kwargs)
 
 
 def response_error(response):
@@ -83,7 +110,7 @@ def add_sample(name, coverage_threshold=8, pool_size=1):
     Todo: Handle requests.exceptions.ConnectionError
     """
     data = {'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
-    response = post(SERVER_ROOT + '/samples', data)
+    response = post('/samples', data=data)
 
     if response.status_code != codes.found:
         response_error(response)
@@ -116,7 +143,7 @@ def list_samples():
     """
     List samples in the database.
     """
-    response = get(SERVER_ROOT + '/samples')
+    response = get('/samples')
     try:
         samples = json.loads(response.content)['samples']
     except (KeyError, json.JSONDecodeError):
@@ -131,7 +158,7 @@ def show_sample(sample_id):
     """
     Show information on a sample.
     """
-    response = get(SERVER_ROOT + '/samples/' + str(sample_id))
+    response = get('/samples/' + str(sample_id))
 
     try:
         sample = json.loads(response.content)['sample']
@@ -151,7 +178,7 @@ def import_vcf(sample_id, vcf, name, use_genotypes=True):
     """
     data = {'name': name, 'filetype': 'vcf'}
     files = {'data': vcf}
-    response = post(SERVER_ROOT + '/data_sources', data=data, files=files)
+    response = post('/data_sources', data=data, files=files)
 
     if response.status_code != codes.found:
         response_error(response)
@@ -160,7 +187,7 @@ def import_vcf(sample_id, vcf, name, use_genotypes=True):
     data_source = json.loads(response.content)['data_source']
 
     data = {'data_source': data_source['id']}
-    response = post(SERVER_ROOT + '/samples/' + str(sample_id) + '/observations', data=data)
+    response = post('/samples/' + str(sample_id) + '/observations', data=data)
 
     if response.status_code != codes.found:
         response_error(response)
@@ -185,7 +212,7 @@ def annotate_vcf(vcf, name):
     """
     data = {'name': name, 'filetype': 'vcf'}
     files = {'data': vcf}
-    response = post(SERVER_ROOT + '/data_sources', data=data, files=files)
+    response = post('/data_sources', data=data, files=files)
 
     if response.status_code != codes.found:
         response_error(response)
@@ -193,7 +220,7 @@ def annotate_vcf(vcf, name):
     response = get(response.headers['location'])
     data_source = json.loads(response.content)['data_source']
 
-    response = post(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations')
+    response = post('/data_sources/' + str(data_source['id']) + '/annotations')
 
     if response.status_code != codes.found:
         response_error(response)
@@ -213,11 +240,11 @@ def annotate_vcf(vcf, name):
             break
         sleep(3)
 
-    response = get(SERVER_ROOT + '/data_sources/' + str(data_source['id']) + '/annotations/' + str(annotation_id))
+    response = get('/data_sources/' + str(data_source['id']) + '/annotations/' + str(annotation_id))
 
     try:
         #annotation = json.loads(response.content)['annotation']
-        print response.content
+        sys.stdout.write(response.content)
     except (KeyError, json.JSONDecodeError):
         response_error(response)
 
