@@ -118,7 +118,6 @@ def add_sample(name, coverage_threshold=8, pool_size=1):
     response = get(response.headers['location'])
     sample = json.loads(response.content)['sample']
     print 'Added sample to the database with sample id %d' % sample['id']
-    return
 
 
 #def remove_sample(sample_id, only_variants=False):
@@ -253,6 +252,36 @@ def annotate_vcf(vcf, name):
     #print 'Date added:    %s' % annotation['added']
 
 
+def add_user(login, password=None, name=None, admin=False, importer=False, annotator=False):
+    """
+    Add a user to the server.
+    """
+    if not password:
+        password = login.upper()  # Todo: Be more creative
+
+    if not name:
+        name = login.capitalize()
+
+    roles = []
+    if admin:
+        roles.append('admin')
+    if importer:
+        roles.append('importer')
+    if annotator:
+        roles.append('annotator')
+
+    data = {'login': login, 'password': password, 'name': name, 'roles': ','.join(roles)}
+    response = post('/users', data=data)
+
+    if response.status_code != codes.found:
+        response_error(response)
+
+    response = get(response.headers['location'])
+    user = json.loads(response.content)['user']
+    print 'Added user to the database with user id %d' % user['id']
+    print 'Password: %s' % password
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
@@ -298,6 +327,15 @@ if __name__ == '__main__':
                        help='file in VCF 4.1 format to annotate variants from')
     group.add_argument('name', metavar='NAME', type=str, help='data source name')
 
+    parser_adduser = subparsers.add_parser('adduser', help='add user')
+    group = parser_adduser.add_argument_group()
+    group.add_argument('login', metavar='LOGIN', type=str, help='user login')
+    parser_adduser.add_argument('-p', dest='password', type=str, help='user password (default: generated)')
+    parser_adduser.add_argument('-n', dest='name', type=str, help='user name (default: capitalized login)')
+    parser_adduser.add_argument('-a', '--admin', dest='admin', action='store_true', help='add admin role')
+    parser_adduser.add_argument('-i', '--importer', dest='importer', action='store_true', help='add importer role')
+    parser_adduser.add_argument('-o', '--annotator', dest='annotator', action='store_true', help='add annotator role')
+
     args = parser.parse_args()
 
     if args.subcommand in ('show', 'remove', 'import') \
@@ -322,3 +360,6 @@ if __name__ == '__main__':
 
     if args.subcommand == 'annotate':
         annotate_vcf(args.vcf, args.name)
+
+    if args.subcommand == 'adduser':
+        add_user(args.login, password=args.password, name=args.name, admin=args.admin, importer=args.importer, annotator=args.annotator)
