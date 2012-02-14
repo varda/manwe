@@ -112,12 +112,11 @@ def add_sample(name, coverage_threshold=8, pool_size=1):
     data = {'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
     response = post('/samples', data=data)
 
-    if response.status_code != codes.found:
+    if response.status_code != codes.created:
         response_error(response)
 
-    response = get(response.headers['location'])
     sample = json.loads(response.content)['sample']
-    print 'Added sample to the database with sample id %d' % sample['id']
+    print 'Added sample to the database with sample URI %s' % sample
 
 
 #def remove_sample(sample_id, only_variants=False):
@@ -179,19 +178,18 @@ def import_vcf(sample_id, vcf, name, use_genotypes=True):
     files = {'data': vcf}
     response = post('/data_sources', data=data, files=files)
 
-    if response.status_code != codes.found:
+    if response.status_code != codes.created:
         response_error(response)
 
-    response = get(response.headers['location'])
     data_source = json.loads(response.content)['data_source']
 
-    data = {'data_source': data_source['id']}
+    data = {'data_source': data_source}
     response = post('/samples/' + str(sample_id) + '/observations', data=data)
 
-    if response.status_code != codes.found:
+    if response.status_code != codes.created:
         response_error(response)
 
-    wait_location = response.headers['location']
+    wait_location = json.loads(response.content)['wait']
 
     while True:
         response = get(wait_location)
