@@ -36,6 +36,19 @@ for use from existing scripts and pipelines. Communication with Varda server
 is done using the [Requests](http://python-requests.org) library.
 
 
+Running Varda client
+--------------------
+
+Create a Python virtual environment and install the requirements:
+
+    $ mkvirtualenv --no-site-packages varda-client
+    $ pip install -r requirements.txt
+
+Run the client with the -h argument for usage information:
+
+    $ python -m varda.main -h
+
+
 Documentation
 -------------
 
