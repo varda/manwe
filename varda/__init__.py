@@ -1,5 +1,9 @@
 """
-Varda, a variant database interface.
+Varda client, a command line interface to Varda server.
+
+.. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
+
+.. Licensed under the MIT license, see the LICENSE file
 """
 
 
@@ -19,20 +23,20 @@ Varda, a variant database interface.
 
 RELEASE = False
 
-__version_info__ = ('1', '0', 'beta-1', 'dev')
-__date__ = '16 Nov 2011'
+__version_info__ = ('1', '0', 'dev')
+__date__ = '21 Sep 2012'
 
 
 __version__ = '.'.join(__version_info__)
-__author__ = 'Leiden University Medical Center'
-__contact__ = 'humgen@lumc.nl'
-__homepage__ = 'http://www.humgen.nl'
+__author__ = 'Martijn Vermaat'
+__contact__ = 'martijn@vermaat.name'
+__homepage__ = 'http://martijn.vermaat.name'
 
 
-API_VERSION = 1
+API = 'http://127.0.0.1:5000'
 
+USER = 'martijn'
+PASSWORD = 'martijn'
 
-API_ROOT = 'http://127.0.0.1:5000'
-
-VARDA_USER = 'pietje'
-VARDA_PASSWORD = 'pi3tje'
+POLL_SLEEP = 5
+MAX_POLLS = 50000

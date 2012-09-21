@@ -50,8 +50,7 @@ you know your data has changed and in that case some old observations will not
 be removed) or to update the support value for the existing observation (e.g.
 if you get data for additional samples in you study).
 
-Todo: Sample.pipeline_v column should allow longer strings.
-Todo: Option to overwrite/increment existing observations.
+Todo: Handle requests.exceptions.ConnectionError
 
 Copyright (c) 2011 Martijn Vermaat <m.vermaat.hg@lumc.nl>
 """
@@ -65,7 +64,7 @@ import requests
 from requests import codes
 import simplejson as json
 
-from varda import API_ROOT, VARDA_USER, VARDA_PASSWORD
+from varda import API, USER, PASSWORD, POLL_SLEEP, MAX_POLLS
 
 
 def get(location, *args, **kwargs):
@@ -75,9 +74,9 @@ def get(location, *args, **kwargs):
     This is just a convenience wrapper for requests.get where we prepend the
     API root to the requested location and add HTTP Basic Authentication.
     """
-    kwargs['auth'] = (VARDA_USER, VARDA_PASSWORD)
+    kwargs['auth'] = (USER, PASSWORD)
     if location.startswith('/'):
-        location = API_ROOT + location
+        location = API + location
     return requests.get(location, *args, **kwargs)
 
 
@@ -88,53 +87,245 @@ def post(location, *args, **kwargs):
     This is just a convenience wrapper for requests.get where we prepend the
     API root to the requested location and add HTTP Basic Authentication.
     """
-    kwargs['auth'] = (VARDA_USER, VARDA_PASSWORD)
+    kwargs['auth'] = (USER, PASSWORD)
     if location.startswith('/'):
-        location = API_ROOT + location
+        location = API + location
     return requests.post(location, *args, **kwargs)
+
+
+def patch(location, *args, **kwargs):
+    """
+    Make a HTTP PATCH request to the server.
+
+    This is just a convenience wrapper for requests.patch where we prepend the
+    API root to the requested location and add HTTP Basic Authentication.
+    """
+    kwargs['auth'] = (USER, PASSWORD)
+    if location.startswith('/'):
+        location = API + location
+    return requests.patch(location, *args, **kwargs)
+
+
+def fatal_error(message):
+    sys.stderr.write(message + '\n')
+    sys.exit(1)
 
 
 def response_error(response):
     try:
         error = json.loads(response.content)['error']
-        sys.stderr.write('Got error from server: %s\n' % error['message'])
+        fatal_error(error['message'])
     except (KeyError, json.JSONDecodeError):
-        sys.stderr.write('Got unexpected response from server\n')
-    sys.exit(1)
+        fatal_error('Got unexpected response from server')
 
 
-def add_sample(name, coverage_threshold=8, pool_size=1):
+def import_sample(name, vcf_files=None, bed_files=None, coverage_threshold=8,
+                  pool_size=1, public=False, annotate=False):
+    """
+    Add sample and import variants and regions. Optionally annotate.
+    """
+    vcf_files = vcf_files or []
+    bed_files = bed_files or []
+
+    if len(vcf_files) < 1:
+        fatal_error('Expecting at least one VCF file')
+
+    if len(bed_files) not in (0, pool_size):
+        fatal_error('Expecting either 0 or %d BED files' % pool_size)
+
+    sample_uri = add_sample(name, coverage_threshold=coverage_threshold,
+                            pool_size=pool_size, public=public,
+                            coverage_profile=bool(bed_files))
+    sample = get_sample(sample_uri)
+
+    data_source_uris = []
+
+    for vcf_file in vcf_files:
+        data_source_uri, _ = import_vcf(sample['variations'], vcf_file)
+        data_source_uris.append(data_source_uri)
+
+    for bed_file in bed_files:
+        import_bed(sample['coverages'], bed_file)
+
+    activate_sample(sample_uri)
+
+    if not annotate:
+        return
+
+    for i, data_source_uri in enumerate(data_source_uris):
+        annotation_uri = annotate_data_source(data_source_uri)
+        annotation = get_annotation(annotation_uri)
+        data_source_uri = annotation['annotated_data_source']
+        data_source = get_data_source(data_source_uri)
+        response = get(data_source['data'])
+        filename = '/tmp/%s.vcf.gz' % i
+        open(filename, 'w').write(response.content)
+        print 'Written annotation: %s' % filename
+
+
+def get_sample(sample_uri):
+    """
+    Get sample info.
+    """
+    response = get(sample_uri)
+
+    try:
+        sample = json.loads(response.content)['sample']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    return sample
+
+
+def get_data_source(data_source_uri):
+    """
+    Get data source info.
+    """
+    response = get(data_source_uri)
+
+    try:
+        data_source = json.loads(response.content)['data_source']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    return data_source
+
+
+def get_annotation(annotation_uri):
+    """
+    Get annotation info.
+    """
+    response = get(annotation_uri)
+
+    try:
+        annotation = json.loads(response.content)['annotation']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    return annotation
+
+
+def activate_sample(sample_uri):
+    """
+    Activate sample.
+    """
+    data = {'active': True}
+    response = patch(sample_uri, data=data)
+
+    try:
+        sample = json.loads(response.content)['sample']
+    except (KeyError, json.JSONDecodeError):
+        response_error(response)
+
+    print 'Activated sample: %s' % sample_uri
+    return sample
+
+
+def add_sample(name, coverage_threshold=8, pool_size=1, public=False, coverage_profile=True):
     """
     Add sample to the database.
-
-    Todo: Handle requests.exceptions.ConnectionError
     """
-    data = {'name': name, 'coverage_threshold': coverage_threshold, 'pool_size': pool_size}
+    if pool_size < 1:
+        fatal_error('Pool size should be at least 1')
+
+    data = {'name': name,
+            'coverage_threshold': coverage_threshold,
+            'pool_size': pool_size,
+            'public': public,
+            'coverage_profile': coverage_profile}
     response = post('/samples', data=data)
 
     if response.status_code != codes.created:
         response_error(response)
 
-    sample = json.loads(response.content)['sample']
-    print 'Added sample to the database with sample URI %s' % sample
+    sample_uri = json.loads(response.content)['sample']
+
+    print 'Added sample to the database: %s' % sample_uri
+    return sample_uri
 
 
-#def remove_sample(sample_id, only_variants=False):
-#    """
-#    Remove sample from the database.
-#    """
-#    db = Db.NGSDb()
-#    sample = db.getSample(sample_id)
-#
-#    if not sample:
-#        sys.stderr.write('No sample with sample id %d\n' % sample_id)
-#        sys.exit(1)
-#
-#    db.deleteSample(sample_id, only_variants)
-#    if only_variants:
-#        print 'Removed variant observations from the database with sample id %d' % sample_id
-#    else:
-#        print 'Removed sample from the database with sample id %d' % sample_id
+def import_vcf(variations_uri, vcf):
+    """
+    Import variants from VCF file.
+    """
+    data = {'name': 'variants', 'filetype': 'vcf'}
+    files = {'data': vcf}
+    response = post('/data_sources', data=data, files=files)
+
+    if response.status_code != codes.created:
+        response_error(response)
+
+    data_source_uri = json.loads(response.content)['data_source']
+
+    print 'Uploaded VCF: %s' % data_source_uri
+
+    data = {'data_source': data_source_uri}
+    response = post(variations_uri, data=data)
+
+    if response.status_code != codes.accepted:
+        response_error(response)
+
+    status_uri = json.loads(response.content)['variation_import_status']
+
+    print 'Started VCF import: %s' % status_uri
+
+    for _ in range(MAX_POLLS):
+        response = get(status_uri)
+
+        if response.status_code != codes.ok:
+            response_error(response)
+
+        status = json.loads(response.content)['status']
+        if status['ready']:
+            print 'Imported VCF: %s' % status['variation']
+            return data_source_uri, status['variation']
+
+        sleep(POLL_SLEEP)
+
+    sys.stderr.write('Importing VCF did not finish in time\n')
+    sys.exit(1)
+
+
+def import_bed(coverages_uri, bed):
+    """
+    Import regions from BED file.
+    """
+    data = {'name': 'regions', 'filetype': 'bed'}
+    files = {'data': bed}
+    response = post('/data_sources', data=data, files=files)
+
+    if response.status_code != codes.created:
+        response_error(response)
+
+    data_source_uri = json.loads(response.content)['data_source']
+
+    print 'Uploaded BED: %s' % data_source_uri
+
+    data = {'data_source': data_source_uri}
+    response = post(coverages_uri, data=data)
+
+    if response.status_code != codes.accepted:
+        response_error(response)
+
+    status_uri = json.loads(response.content)['coverage_import_status']
+
+    print 'Started BED import: %s' % status_uri
+
+    for _ in range(MAX_POLLS):
+        response = get(status_uri)
+
+        if response.status_code != codes.ok:
+            response_error(response)
+
+        status = json.loads(response.content)['status']
+        if status['ready']:
+            print 'Imported BED: %s' % status['coverage']
+            return data_source_uri, status['coverage']
+
+        sleep(POLL_SLEEP)
+
+    sys.stderr.write('Importing BED did not finish in time\n')
+    sys.exit(1)
 
 
 def list_samples():
@@ -170,114 +361,36 @@ def show_sample(sample_id):
     print 'Poolsize:           %s' % sample['pool_size']
 
 
-def import_vcf(sample_id, vcf, name, use_genotypes=True):
+def annotate_data_source(data_source_uri):
     """
-    Import variants from VCF file.
+    Annotate an uploaded data source.
     """
-    data = {'name': name, 'filetype': 'vcf'}
-    files = {'data': vcf}
-    response = post('/data_sources', data=data, files=files)
+    data_source = get_data_source(data_source_uri)
 
-    if response.status_code != codes.created:
+    response = post(data_source['annotations'])
+
+    if response.status_code != codes.accepted:
         response_error(response)
 
-    data_source = json.loads(response.content)['data_source']
+    status_uri = json.loads(response.content)['annotation_write_status']
 
-    data = {'data_source': data_source}
-    response = post('/samples/' + str(sample_id) + '/observations', data=data)
+    print 'Started VCF annotation: %s' % status_uri
 
-    if response.status_code != codes.created:
-        response_error(response)
+    for _ in range(MAX_POLLS):
+        response = get(status_uri)
 
-    wait_location = json.loads(response.content)['wait']
-
-    while True:
-        response = get(wait_location)
-        try:
-            observations = json.loads(response.content)['observations']
-        except (KeyError, json.JSONDecodeError):
+        if response.status_code != codes.ok:
             response_error(response)
-        if observations['ready']:
-            print 'Imported VCF file'
-            break
-        sleep(3)
 
+        status = json.loads(response.content)['status']
+        if status['ready']:
+            print 'Annotated VCF: %s' % status['annotation']
+            return status['annotation']
 
-def annotate_vcf(vcf, name):
-    """
-    Annotate variants in a VCF file.
-    """
-    data = {'name': name, 'filetype': 'vcf'}
-    files = {'data': vcf}
-    response = post('/data_sources', data=data, files=files)
+        sleep(POLL_SLEEP)
 
-    if response.status_code != codes.found:
-        response_error(response)
-
-    response = get(response.headers['location'])
-    data_source = json.loads(response.content)['data_source']
-
-    response = post('/data_sources/' + str(data_source['id']) + '/annotations')
-
-    if response.status_code != codes.found:
-        response_error(response)
-
-    wait_location = response.headers['location']
-
-    annotation_id = None
-
-    while True:
-        response = get(wait_location)
-        try:
-            annotation = json.loads(response.content)['annotation']
-        except (KeyError, json.JSONDecodeError):
-            response_error(response)
-        if annotation['ready']:
-            annotation_id = annotation['id']
-            break
-        sleep(3)
-
-    response = get('/data_sources/' + str(data_source['id']) + '/annotations/' + str(annotation_id))
-
-    try:
-        #annotation = json.loads(response.content)['annotation']
-        sys.stdout.write(response.content)
-    except (KeyError, json.JSONDecodeError):
-        response_error(response)
-
-    #print 'Annotation id: %d' % annotation['id']
-    #print 'Data source    %s' % annotation['data_source']
-    #print 'Date added:    %s' % annotation['added']
-
-
-def add_user(login, password=None, name=None, admin=False, importer=False, annotator=False):
-    """
-    Add a user to the server.
-    """
-    if not password:
-        password = login.upper()  # Todo: Be more creative
-
-    if not name:
-        name = login.capitalize()
-
-    roles = []
-    if admin:
-        roles.append('admin')
-    if importer:
-        roles.append('importer')
-    if annotator:
-        roles.append('annotator')
-
-    data = {'login': login, 'password': password, 'name': name, 'roles': ','.join(roles)}
-    response = post('/users', data=data)
-
-    if response.status_code != codes.found:
-        response_error(response)
-
-    response = get(response.headers['location'])
-    user = json.loads(response.content)['user']
-    print 'Added user to the database with user id %d' % user['id']
-    print 'Password: %s' % password
+    sys.stderr.write('Annotating VCF did not finish in time\n')
+    sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -285,79 +398,37 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
                                        help='subcommand help')
 
-    parser_add = subparsers.add_parser('add', help='add sample')
-    group = parser_add.add_argument_group()
-    group.add_argument('name', metavar='NAME', type=str, help='sample name')
-    parser_add.add_argument('-c', dest='coverage_threshold', default=8, type=int,
-                            help='coverage threshold for variant calls (default: 8)')
-    parser_add.add_argument('-p', dest='pool_size', default=1, type=int,
-                            help='number of individuals in sample (default: 1)')
+    p = subparsers.add_parser('import', help='import sample data')
+    p.add_argument('name', metavar='NAME', type=str, help='sample name')
+    p.add_argument('--vcf', metavar='VCF_FILE', type=argparse.FileType('r'),
+                   dest='vcf_files', action='append',
+                   help='file in VCF 4.1 format to import variants from (multiple allowed)')
+    p.add_argument('--bed', metavar='BED_FILE', type=argparse.FileType('r'),
+                   dest='bed_files', action='append',
+                   help='file in BED format to import covered regions from (multiple allowed)')
+    p.add_argument('-c', dest='coverage_threshold', default=8, type=int,
+                   help='coverage threshold for variant calls (default: 8)')
+    p.add_argument('-s', dest='pool_size', default=1, type=int,
+                   help='number of individuals in sample (default: 1)')
+    p.add_argument('-p', '--public', dest='public', action='store_true',
+                   help='Sample data is public')
+    p.add_argument('-a', '--annotate', dest='annotate', action='store_true',
+                   help='Annotate variants')
 
-    parser_show = subparsers.add_parser('show', help='show sample')
-    group = parser_show.add_argument_group()
-    group.add_argument('sample_id', metavar='SAMPLE_ID', type=int,
-                       help='sample id')
+    p = subparsers.add_parser('show', help='show sample')
+    p.add_argument('sample_id', metavar='SAMPLE_ID', type=int, help='sample id')
 
-    parser_list = subparsers.add_parser('list', help='list samples')
-
-    #parser_remove = subparsers.add_parser('remove',
-    #                                      help='remove population study')
-    #group = parser_remove.add_argument_group()
-    #group.add_argument('sample_id', metavar='SAMPLE_ID', type=int,
-    #                   help='population study sample id')
-    #parser_remove.add_argument('-o', '--only-variants', dest='only_variants',
-    #                           action='store_true',
-    #                           help='don\t remove the study, only its variants')
-
-    parser_import = subparsers.add_parser('import', help='import variants')
-    group = parser_import.add_argument_group()
-    group.add_argument('sample_id', metavar='SAMPLE_ID', type=int,
-                       help='sample id')
-    group.add_argument('vcf', metavar='VCF_FILE', type=argparse.FileType('r'),
-                       help='file in VCF 4.1 format to import variants from')
-    group.add_argument('name', metavar='NAME', type=str, help='data source name')
-    parser_import.add_argument('-n', '--no-genotypes', dest='no_genotypes',
-                               action='store_true', help='don\'t use genotypes')
-
-    parser_annotate = subparsers.add_parser('annotate', help='annotate variants')
-    group = parser_annotate.add_argument_group()
-    group.add_argument('vcf', metavar='VCF_FILE', type=argparse.FileType('r'),
-                       help='file in VCF 4.1 format to annotate variants from')
-    group.add_argument('name', metavar='NAME', type=str, help='data source name')
-
-    parser_adduser = subparsers.add_parser('adduser', help='add user')
-    group = parser_adduser.add_argument_group()
-    group.add_argument('login', metavar='LOGIN', type=str, help='user login')
-    parser_adduser.add_argument('-p', dest='password', type=str, help='user password (default: generated)')
-    parser_adduser.add_argument('-n', dest='name', type=str, help='user name (default: capitalized login)')
-    parser_adduser.add_argument('-a', '--admin', dest='admin', action='store_true', help='add admin role')
-    parser_adduser.add_argument('-i', '--importer', dest='importer', action='store_true', help='add importer role')
-    parser_adduser.add_argument('-o', '--annotator', dest='annotator', action='store_true', help='add annotator role')
+    p = subparsers.add_parser('list', help='list samples')
 
     args = parser.parse_args()
 
-    if args.subcommand in ('show', 'remove', 'import') \
-           and not 0 < args.sample_id < 100:
-            sys.stderr.write('Population studies have sample id < 100\n')
-            sys.exit(1)
-
-    if args.subcommand == 'add':
-        add_sample(args.name, coverage_threshold=args.coverage_threshold, pool_size=args.pool_size)
+    if args.subcommand == 'import':
+        import_sample(args.name, vcf_files=args.vcf_files, bed_files=args.bed_files,
+                      coverage_threshold=args.coverage_threshold, pool_size=args.pool_size,
+                      public=args.public, annotate=args.annotate)
 
     if args.subcommand == 'show':
         show_sample(args.sample_id)
 
-    #if args.subcommand == 'remove':
-    #    remove_sample(args.sample_id, args.only_variants)
-
     if args.subcommand == 'list':
         list_samples()
-
-    if args.subcommand == 'import':
-        import_vcf(args.sample_id, args.vcf, args.name, not args.no_genotypes)
-
-    if args.subcommand == 'annotate':
-        annotate_vcf(args.vcf, args.name)
-
-    if args.subcommand == 'adduser':
-        add_user(args.login, password=args.password, name=args.name, admin=args.admin, importer=args.importer, annotator=args.annotator)
