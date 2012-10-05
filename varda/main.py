@@ -279,6 +279,8 @@ def import_vcf(variations_uri, vcf):
         if status['ready']:
             print 'Imported VCF: %s' % status['variation']
             return data_source_uri, status['variation']
+        else:
+            print 'Percentage: %s' % status['percentage']
 
         sleep(POLL_SLEEP)
 
