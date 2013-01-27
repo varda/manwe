@@ -1,5 +1,6 @@
 """
-Varda client, a command line interface to Varda server.
+Manwe, a Python client library and command line interface to the Varda
+database for genomic variation frequencies.
 
 .. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
 
@@ -33,10 +34,5 @@ __contact__ = 'martijn@vermaat.name'
 __homepage__ = 'http://martijn.vermaat.name'
 
 
-API = 'http://127.0.0.1:5000'
-
-USER = 'martijn'
-PASSWORD = 'martijn'
-
-POLL_SLEEP = 1
-MAX_POLLS = 50000
+from .resource import Sample, User
+from .session import Session
