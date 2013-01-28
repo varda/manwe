@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Manwë, a Python client library and command line interface to the Varda
 database for genomic variation frequencies.
