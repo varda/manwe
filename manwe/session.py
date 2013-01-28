@@ -11,7 +11,7 @@ import requests
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
-from ._resources import Sample, User
+from .resources import Sample, User
 
 
 logger = logging.getLogger('manwe')
