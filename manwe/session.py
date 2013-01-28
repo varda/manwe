@@ -44,26 +44,32 @@ class Session(object):
                 uri = self.config.api_root + uri[1:]
             else:
                 uri = self.config.api_root + uri
-        data = data or {}
+        data = json.dumps(data or {})
         auth = self.config.user, self.config.password
-        response = requests.request(method, uri, data=data, auth=auth)
+        response = requests.request(method, uri, data=data, headers={'content-type': 'application/json'}, auth=auth)
         print response.text
         return response
 
     def get_sample(self, uri):
         response = self.request(uri)
-        return Sample(response.json()['sample'])
+        return Sample(self, **response.json()['sample'])
 
     def get_user(self, uri):
         response = self.request(uri)
-        return User(response.json()['user'])
+        return User(self, **response.json()['user'])
 
-    def add_sample(self, login, password, name=None, roles=None):
+    def add_sample(self, name, pool_size=1, coverage_profile=True, public=False):
+        response = self.request(self.uris['samples'], method='POST',
+                                data=dict(name=name, pool_size=pool_size, coverage_profile=coverage_profile, public=public))
+        return self.get_sample(response.json()['sample_uri'])
+
+    def add_user(self, login, password, name=None, roles=None):
         name = name or login
         roles = roles or []
-        self.request(self.uris['samples'], method='POST',
-                     data=json.dumps(login=login, password=password,
-                                     name=name, roles=roles))
+        response = self.request(self.uris['users'], method='POST',
+                                data=dict(login=login, password=password,
+                                          name=name, roles=roles))
+        return self.get_user(response.json()['user_uri'])
 
     def save(self, instance):
         if not instance.uri:
