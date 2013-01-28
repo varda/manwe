@@ -11,7 +11,7 @@ import requests
 from requests import codes
 
 from .config import Config
-from .resource import Sample, User
+from ._resource import Sample, User
 
 
 class Session(object):
@@ -50,13 +50,20 @@ class Session(object):
         print response.text
         return response
 
-    def sample(self, uri):
+    def get_sample(self, uri):
         response = self.request(uri)
-        return Sample.from_dict(response.json()['sample'])
+        return Sample(response.json()['sample'])
 
-    def user(self, uri):
+    def get_user(self, uri):
         response = self.request(uri)
-        return User.from_dict(response.json()['user'])
+        return User(response.json()['user'])
+
+    def add_sample(self, login, password, name=None, roles=None):
+        name = name or login
+        roles = roles or []
+        self.request(self.uris['samples'], method='POST',
+                     data=json.dumps(login=login, password=password,
+                                     name=name, roles=roles))
 
     def save(self, instance):
         if not instance.uri:

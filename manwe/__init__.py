@@ -34,5 +34,4 @@ __contact__ = 'martijn@vermaat.name'
 __homepage__ = 'http://martijn.vermaat.name'
 
 
-from .resource import Sample, User
 from .session import Session
