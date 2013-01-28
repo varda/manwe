@@ -25,8 +25,7 @@ class Session(object):
         """
         Create a `Session`.
 
-        :arg config: Configuration filename.
-        :type config: str
+        :arg str config: Configuration filename.
         :arg logging.LOG_LEVEL log_level: Control the level of log messages
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
@@ -35,6 +34,9 @@ class Session(object):
         self.set_log_level(log_level)
 
     def set_log_level(self, log_level):
+        """
+        Control the level of log messages you will see.
+        """
         logger.setLevel(log_level)
 
     @property
@@ -133,7 +135,8 @@ class Session(object):
         response = self.get(uri)
         return User(self, response['user'])
 
-    def add_sample(self, name, pool_size=1, coverage_profile=True, public=False):
+    def add_sample(self, name, pool_size=1, coverage_profile=True,
+                   public=False):
         """
         Create a new sample.
         """
