@@ -20,6 +20,21 @@ logger = logging.getLogger('manwe')
 class Session(object):
     """
     Session for interfacing the server API.
+
+    Example session::
+
+        >>> session = Session()
+        >>> sample = add_sample('Test')
+        >>> sample.uri
+        '/samples/1'
+        >>> sample.dirty
+        False
+        >>> sample.name = 'Test sample'
+        >>> sample.dirty
+        True
+        >>> sample.save()
+        >>> sample.dirty
+        False
     """
     def __init__(self, config=None, log_level=logging.INFO):
         """
