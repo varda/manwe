@@ -22,9 +22,11 @@ class Resource(object):
                 self._fields[name] = value
             return f
         for name in cls._mutable:
-            setattr(cls, name, property(getter(name), setter(name)))
+            if not hasattr(cls, name):
+                setattr(cls, name, property(getter(name), setter(name)))
         for name in cls._immutable:
-            setattr(cls, name, property(getter(name)))
+            if not hasattr(cls, name):
+                setattr(cls, name, property(getter(name)))
         return super(Resource, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, session, fields):
@@ -46,6 +48,10 @@ class Resource(object):
 class Sample(Resource):
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public')
     _immutable = ('uri', 'user_uri', 'added')
+
+    @property
+    def added(self):
+        return self._fields['added'] + ' jaja'
 
 
 class User(Resource):
