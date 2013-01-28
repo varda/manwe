@@ -35,4 +35,18 @@ __contact__ = 'martijn@vermaat.name'
 __homepage__ = 'http://martijn.vermaat.name'
 
 
+# Set default logging handler to avoid "No handler found" warnings.
+import logging
+try:
+    # Python 2.7+
+    from logging import NullHandler
+except ImportError:
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
+logging.getLogger('manwe').addHandler(NullHandler())
+
+
+from .errors import (ApiError, BadRequestError, UnauthorizedError,
+                     ForbiddenError, NotFoundError)
 from .session import Session

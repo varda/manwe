@@ -27,7 +27,7 @@ class Resource(object):
             setattr(cls, name, property(getter(name)))
         return super(Resource, cls).__new__(cls, *args, **kwargs)
 
-    def __init__(self, session, **fields):
+    def __init__(self, session, fields):
         self.session = session
         self._dirty = set()
         self._fields = fields

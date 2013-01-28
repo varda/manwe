@@ -4,33 +4,44 @@ Manwë sessions.
 """
 
 
-# Todo: Handle requests.exceptions.ConnectionError.
-
-
 import json
+import logging
 import requests
-from requests import codes
 
 from .config import Config
-from ._resource import Sample, User
+from .errors import (ApiError, BadRequestError, UnauthorizedError,
+                     ForbiddenError, NotFoundError)
+from ._resources import Sample, User
+
+
+logger = logging.getLogger('manwe')
 
 
 class Session(object):
     """
     Session for interfacing the server API.
     """
-    def __init__(self, config=None):
+    def __init__(self, config=None, log_level=logging.INFO):
         """
         Create a `Session`.
 
         :arg config: Configuration filename.
         :type config: str
+        :arg logging.LOG_LEVEL log_level: Control the level of log messages
+            you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
         self.config = Config(filename=config)
         self._cached_uris = None
+        self.set_log_level(log_level)
+
+    def set_log_level(self, log_level):
+        logger.setLevel(log_level)
 
     @property
     def uris(self):
+        """
+        Dictionary mapping API endpoints to their URIs.
+        """
         if not self._cached_uris:
             response = self.request(self.config.api_root).json()
             self._cached_uris = {key: response[key + '_uri'] for key in
@@ -39,45 +50,107 @@ class Session(object):
                                   'annotations', 'variants')}
         return self._cached_uris
 
-    def request(self, uri, data=None, method='GET'):
+    def _qualified_uri(self, uri):
         if uri.startswith('/'):
             if self.config.api_root.endswith('/'):
-                uri = self.config.api_root + uri[1:]
-            else:
-                uri = self.config.api_root + uri
-        data = json.dumps(data or {})
-        auth = self.config.user, self.config.password
-        response = requests.request(method, uri, data=data, headers={'content-type': 'application/json'}, auth=auth)
-        print response.text
-        return response
+                return self.config.api_root + uri[1:]
+            return self.config.api_root + uri
+        return uri
+
+    def get(self, *args, **kwargs):
+        """
+        Short for :method:`request` where `method` is ``GET``.
+        """
+        return self.request('GET', *args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        """
+        Short for :method:`request` where `method` is ``POST``.
+        """
+        return self.request('POST', *args, **kwargs)
+
+    def patch(self, *args, **kwargs):
+        """
+        Short for :method:`request` where `method` is ``PATCH``.
+        """
+        return self.request('PATCH', *args, **kwargs)
+
+    def request(self, method, uri, **kwargs):
+        """
+        Send HTTP request to server.
+
+        :raises requests.RequestException: Exception occurred while handling
+            an API request.
+        """
+        headers = kwargs.pop('headers', {})
+        uri = self._qualified_uri(uri)
+        if 'data' in kwargs:
+            kwargs['data'] = json.dumps(kwargs['data'])
+            headers['content-type'] = 'application/json'
+        kwargs['auth'] = self.config.user, self.config.password
+        if headers:
+            kwargs['headers'] = headers
+        try:
+            response = requests.request(method, uri, **kwargs)
+        except requests.RequestException as e:
+            logger.warn('Unable to make API request', method, uri)
+            raise
+        if response.status_code in (200, 201, 202):
+            # Todo: What if no JSON?
+            logger.debug('Successful API response', method, uri,
+                         response.status_code)
+            return response.json()
+        logger.warn('Error API response', method, uri, response.status_code)
+        self._response_error(response)
+
+    def _response_error(self, response):
+        api_errors = defaultdict(lambda: ApiError)
+        api_errors.update({400: BadRequestError,
+                           401: UnauthorizedError,
+                           403: ForbiddenError,
+                           404: NotFoundError})
+        try:
+            content = response.json()
+            code = content['error']['code']
+            message = content['error']['message']
+        except KeyError, ValueError:
+            code = response.reason
+            message = response.text[:78]
+        logger.debug('API error code', code, message)
+        raise self._api_errors[response.status_code](code, message)
 
     def get_sample(self, uri):
-        response = self.request(uri)
-        return Sample(self, **response.json()['sample'])
+        """
+        Get a sample by URI.
+        """
+        response = self.get(uri)
+        return Sample(self, response['sample'])
 
     def get_user(self, uri):
-        response = self.request(uri)
-        return User(self, **response.json()['user'])
+        """
+        Get a user by URI.
+        """
+        response = self.get(uri)
+        return User(self, response['user'])
 
     def add_sample(self, name, pool_size=1, coverage_profile=True, public=False):
-        response = self.request(self.uris['samples'], method='POST',
-                                data=dict(name=name, pool_size=pool_size, coverage_profile=coverage_profile, public=public))
-        return self.get_sample(response.json()['sample_uri'])
+        """
+        Create a new sample.
+        """
+        data = {'name': name,
+                'pool_size': pool_size,
+                'coverage_profile': coverage_profile,
+                'public': public}
+        response = self.post(self.uris['samples'], data=data)
+        return self.get_sample(response['sample_uri'])
 
     def add_user(self, login, password, name=None, roles=None):
-        name = name or login
-        roles = roles or []
-        response = self.request(self.uris['users'], method='POST',
-                                data=dict(login=login, password=password,
-                                          name=name, roles=roles))
-        return self.get_user(response.json()['user_uri'])
-
-    def save(self, instance):
-        if not instance.uri:
-            response = self.request(self.uris[instance._collection], method='POST',
-                                    data=instance._fields_all)
-            instance._uri = response.headers['location']
-        elif instance.dirty:
-            self.request(instance.uri, method='PATCH',
-                         data=instance._fields_dirty)
-        instance._clean()
+        """
+        Create a new user.
+        """
+        data = {'login': login,
+                'password': password,
+                'name': name or login,
+                'roles': roles or []}
+        response = self.post(self.uris['users'], data=data)
+        return self.get_user(response['user_uri'])
