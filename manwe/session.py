@@ -1,5 +1,5 @@
 """
-Manwe sessions.
+Manwë sessions.
 """
 
 

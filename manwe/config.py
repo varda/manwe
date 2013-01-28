@@ -1,5 +1,5 @@
 """
-Manwe configuration.
+Manwë configuration.
 
 All communication with this module should be done by using the get function
 which returns a configuration value, given a name.

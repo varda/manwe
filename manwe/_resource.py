@@ -1,5 +1,5 @@
 """
-Manwe resources.
+Manwë resources.
 """
 
 

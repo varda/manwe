@@ -1,5 +1,5 @@
 """
-Manwe, a Python client library and command line interface to the Varda
+Manwë, a Python client library and command line interface to the Varda
 database for genomic variation frequencies.
 
 .. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
