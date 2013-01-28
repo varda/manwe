@@ -4,6 +4,9 @@ Manwë resources.
 """
 
 
+import dateutil.parser
+
+
 class Resource(object):
     """
     Base class for representing server resources.
@@ -75,7 +78,10 @@ class Sample(Resource):
 
     @property
     def added(self):
-        return self._fields['added'] + ' jaja'
+        added = self._fields.get('added')
+        if not added:
+            return None
+        return dateutil.parser.parse(added)
 
 
 class User(Resource):
