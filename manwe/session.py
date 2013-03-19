@@ -4,6 +4,7 @@ Manwë sessions.
 """
 
 
+import collections
 import json
 import logging
 import requests
@@ -11,7 +12,7 @@ import requests
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
-from .resources import Sample, User
+from .resources import Sample, SampleCollection, User
 
 
 logger = logging.getLogger('manwe')
@@ -36,7 +37,7 @@ class Session(object):
         >>> sample.dirty
         False
     """
-    def __init__(self, config=None, log_level=logging.INFO):
+    def __init__(self, api_root=None, user=None, password=None, config=None, log_level=logging.INFO):
         """
         Create a `Session`.
 
@@ -44,7 +45,7 @@ class Session(object):
         :arg logging.LOG_LEVEL log_level: Control the level of log messages
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
-        self.config = Config(filename=config)
+        self.config = Config(filename=config, api_root=api_root, user=user, password=password)
         self._cached_uris = None
         self.set_log_level(log_level)
 
@@ -60,7 +61,7 @@ class Session(object):
         Dictionary mapping API endpoints to their URIs.
         """
         if not self._cached_uris:
-            response = self.request(self.config.api_root).json()
+            response = self.get(self.config.api_root)
             self._cached_uris = {key: response[key + '_uri'] for key in
                                  ('authentication', 'users', 'samples',
                                   'variations', 'coverages', 'data_sources',
@@ -121,7 +122,7 @@ class Session(object):
         self._response_error(response)
 
     def _response_error(self, response):
-        api_errors = defaultdict(lambda: ApiError)
+        api_errors = collections.defaultdict(lambda: ApiError)
         api_errors.update({400: BadRequestError,
                            401: UnauthorizedError,
                            403: ForbiddenError,
@@ -134,7 +135,7 @@ class Session(object):
             code = response.reason
             message = response.text[:78]
         logger.debug('API error code', code, message)
-        raise self._api_errors[response.status_code](code, message)
+        raise api_errors[response.status_code](code, message)
 
     def get_sample(self, uri):
         """
@@ -149,6 +150,12 @@ class Session(object):
         """
         response = self.get(uri)
         return User(self, response['user'])
+
+    def list_samples(self):
+        """
+        Returns a :class:`SampleCollection` instance.
+        """
+        return SampleCollection(self)
 
     def add_sample(self, name, pool_size=1, coverage_profile=True,
                    public=False):

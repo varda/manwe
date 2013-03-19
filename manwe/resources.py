@@ -4,7 +4,14 @@ Manwë resources.
 """
 
 
+import collections
+
 import dateutil.parser
+
+from .errors import NotFoundError
+
+
+COLLECTION_CACHE_SIZE = 20
 
 
 class Resource(object):
@@ -25,7 +32,7 @@ class Resource(object):
                 return self._fields.get(name)
             return getter_for_name
         def setter(name):
-            def setter_for_namef(self, value):
+            def setter_for_name(self, value):
                 self._dirty.add(name)
                 self._fields[name] = value
             return setter_for_name
@@ -53,7 +60,7 @@ class Resource(object):
     @property
     def dirty(self):
         """
-        ``True`` if there are any unsaved changes on this resource, ``False``
+        `True` if there are any unsaved changes on this resource, `False`
         otherwise.
         """
         return bool(self._dirty)
@@ -90,3 +97,59 @@ class User(Resource):
     """
     _mutable = ('login', 'password', 'name', 'roles')
     _immutable = ('uri', 'added')
+
+
+class SampleCollection(object):
+    """
+    Base class for representing server resource collections, iterators
+    returning :class:`Resource` instances.
+    """
+    # Note that we don't implement __len__ on purpose, since we load the
+    # resources a few at a time, lazily, and what's on the server could always
+    # change under our nose.
+    # We might however implement another property (e.g. `size`) that is set
+    # using the Content-Range response header value and clearly document that
+    # it might deviate from the actual number of items the iterator produces.
+    def __init__(self, session):
+        """
+        Create a representation for a server resource collection.
+        """
+        #: The session this resource collection  is attached to as
+        #: :class:`session.Session <Session>`.
+        self.session = session
+        self._next = 0
+        self._resources = collections.deque()
+
+    def __iter__(self):
+        return self
+
+    def _get_resources(self):
+        if self._next is not None:
+            range = 'items=%d-%d' % (self._next,
+                                     self._next + COLLECTION_CACHE_SIZE - 1)
+            try:
+                response = self.session.get(self.session.uris['samples'],
+                                            headers={'Range': range})
+            except NotFoundError:
+                # Todo: Instead of checking for 404 Not Found here, it would
+                #     better to actually check the value of the Content-Range
+                #     header in each request and act appropriately.
+                self._next = None
+            else:
+                self._resources.extend(Sample(self.session, sample)
+                                       for sample in response['samples'])
+                self._next += COLLECTION_CACHE_SIZE
+
+    def next(self):
+        """
+        Return the next :class:`Resource` in the collection.
+        """
+        if not self._resources:
+            self._get_resources()
+        try:
+            return self._resources.popleft()
+        except IndexError:
+            raise StopIteration()
+
+    # Python 3 compatibility.
+    __next__ = next
