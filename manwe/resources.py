@@ -7,6 +7,7 @@ Manwë resources.
 import collections
 
 import dateutil.parser
+import werkzeug.http
 
 from .errors import NotFoundError
 
@@ -104,12 +105,6 @@ class SampleCollection(object):
     Base class for representing server resource collections, iterators
     returning :class:`Resource` instances.
     """
-    # Note that we don't implement __len__ on purpose, since we load the
-    # resources a few at a time, lazily, and what's on the server could always
-    # change under our nose.
-    # We might however implement another property (e.g. `size`) that is set
-    # using the Content-Range response header value and clearly document that
-    # it might deviate from the actual number of items the iterator produces.
     def __init__(self, session):
         """
         Create a representation for a server resource collection.
@@ -117,28 +112,37 @@ class SampleCollection(object):
         #: The session this resource collection  is attached to as
         #: :class:`session.Session <Session>`.
         self.session = session
+
+        #: The total number of resources in this collection as last reported
+        #: by the server. Note that the actual number of resources produced by
+        #: the collection iterator might deviate from this number, and this is
+        #: why there is not `__len__` property defined.
+        self.size = 0
+
         self._next = 0
         self._resources = collections.deque()
+        self._get_resources()
 
     def __iter__(self):
         return self
 
     def _get_resources(self):
-        if self._next is not None:
-            range = 'items=%d-%d' % (self._next,
-                                     self._next + COLLECTION_CACHE_SIZE - 1)
-            try:
-                response = self.session.get(self.session.uris['samples'],
-                                            headers={'Range': range})
-            except NotFoundError:
-                # Todo: Instead of checking for 404 Not Found here, it would
-                #     better to actually check the value of the Content-Range
-                #     header in each request and act appropriately.
-                self._next = None
-            else:
-                self._resources.extend(Sample(self.session, sample)
-                                       for sample in response['samples'])
-                self._next += COLLECTION_CACHE_SIZE
+        if self._next is None:
+            return
+        # Todo: Use Range object from Werkzeug to construct this header.
+        range = 'items=%d-%d' % (self._next,
+                                 self._next + COLLECTION_CACHE_SIZE - 1)
+        response = self.session.get(self.session.uris['samples'],
+                                    headers={'Range': range})
+        self._resources.extend(Sample(self.session, sample)
+                               for sample in response.json()['samples'])
+        content_range = werkzeug.http.parse_content_range_header(
+            response.headers['Content-Range'])
+        self.size = content_range.length
+        if content_range.stop < content_range.length:
+            self._next += COLLECTION_CACHE_SIZE
+        else:
+            self._next = None
 
     def next(self):
         """

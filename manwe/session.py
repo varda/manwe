@@ -46,8 +46,13 @@ class Session(object):
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
         self.config = Config(filename=config, api_root=api_root, user=user, password=password)
-        self._cached_uris = None
         self.set_log_level(log_level)
+        self._cached_uris = None
+        self._api_errors = collections.defaultdict(lambda: ApiError,
+                                                   {400: BadRequestError,
+                                                    401: UnauthorizedError,
+                                                    403: ForbiddenError,
+                                                    404: NotFoundError})
 
     def set_log_level(self, log_level):
         """
@@ -61,7 +66,7 @@ class Session(object):
         Dictionary mapping API endpoints to their URIs.
         """
         if not self._cached_uris:
-            response = self.get(self.config.api_root)
+            response = self.get(self.config.api_root).json()
             self._cached_uris = {key: response[key + '_uri'] for key in
                                  ('authentication', 'users', 'samples',
                                   'variations', 'coverages', 'data_sources',
@@ -117,16 +122,11 @@ class Session(object):
             # Todo: What if no JSON?
             logger.debug('Successful API response', method, uri,
                          response.status_code)
-            return response.json()
+            return response
         logger.warn('Error API response', method, uri, response.status_code)
         self._response_error(response)
 
     def _response_error(self, response):
-        api_errors = collections.defaultdict(lambda: ApiError)
-        api_errors.update({400: BadRequestError,
-                           401: UnauthorizedError,
-                           403: ForbiddenError,
-                           404: NotFoundError})
         try:
             content = response.json()
             code = content['error']['code']
@@ -135,21 +135,21 @@ class Session(object):
             code = response.reason
             message = response.text[:78]
         logger.debug('API error code', code, message)
-        raise api_errors[response.status_code](code, message)
+        raise self._api_errors[response.status_code](code, message)
 
     def get_sample(self, uri):
         """
         Get a sample by URI.
         """
         response = self.get(uri)
-        return Sample(self, response['sample'])
+        return Sample(self, response.json()['sample'])
 
     def get_user(self, uri):
         """
         Get a user by URI.
         """
         response = self.get(uri)
-        return User(self, response['user'])
+        return User(self, response.json()['user'])
 
     def list_samples(self):
         """
@@ -167,7 +167,7 @@ class Session(object):
                 'coverage_profile': coverage_profile,
                 'public': public}
         response = self.post(self.uris['samples'], data=data)
-        return self.get_sample(response['sample_uri'])
+        return self.get_sample(response.json()['sample_uri'])
 
     def add_user(self, login, password, name=None, roles=None):
         """
@@ -178,4 +178,4 @@ class Session(object):
                 'name': name or login,
                 'roles': roles or []}
         response = self.post(self.uris['users'], data=data)
-        return self.get_user(response['user_uri'])
+        return self.get_user(response.json()['user_uri'])
