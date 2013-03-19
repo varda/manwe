@@ -5,15 +5,20 @@ Manwë configuration.
 All communication with this module should be done by using the get function
 which returns a configuration value, given a name.
 
-Reading the configuration file is implemented lazily and as such done upon the
-first call to the get function.
+By default, configuration values are read from two locations, in this order:
 
-Configuration values are read from two locations, in this order:
-1) /etc/manwe/config
-2) $XDG_CONFIG_HOME/manwe/config
+1. ``/etc/manwe/config``
+2. ``$XDG_CONFIG_HOME/manwe/config``
 
 If both files exist, values defined in the second overwrite values defined in
 the first.
+
+An exception to this system is when the optional `filename` argument is passed
+to :class:`Config`. In that case, the locations listed above are ignored and
+the configuration is read from `filename`.
+
+Additionally, any keyword arguments passed to :class:`Config` other than
+`filename` will overwrite values read from a file.
 """
 
 
@@ -43,14 +48,16 @@ class Config(object):
     """
     Read the configuration file and provide access to its values.
     """
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, **values):
         """
         Initialise the class with variables read from the configuration
         file.
 
-        Configuration values are read from two locations, in this order:
-        - SYSTEM_CONFIGURATION
-        - USER_CONFIGURATION
+        By default, configuration values are read from two locations, in this
+        order:
+
+        1. `SYSTEM_CONFIGURATION`
+        2. `USER_CONFIGURATION`
 
         If both files exist, values defined in the second overwrite values
         defined in the first.
@@ -59,6 +66,9 @@ class Config(object):
         is set. In that case, the locations listed above are ignored and the
         configuration is read from `filename`.
 
+        Additionally, any keyword arguments passed to :class:`Config` other
+        than `filename` will overwrite values read from a file.
+
         :arg filename: Optional filename to read configuration from. If
             present, this overrides automatic detection of configuration file
             location.
@@ -66,7 +76,7 @@ class Config(object):
 
         :raise ConfigurationError: If configuration could not be read.
         """
-        config = None
+        config = {}
 
         if filename:
             config = self._load_config(filename)
@@ -80,8 +90,9 @@ class Config(object):
                 else:
                     config = user_config
 
-        if not config:
-            raise ConfigurationError('Could not locate configuration')
+        # Any not-None keyword arguments overwrite existing values.
+        config.merge({key: value for key, value in values.items()
+                      if value is not None})
 
         self.api_root = config.get('api_root', DEFAULT_API_ROOT)
         self.user = config.get('user')
