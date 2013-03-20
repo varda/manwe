@@ -37,7 +37,8 @@ class Session(object):
         >>> sample.dirty
         False
     """
-    def __init__(self, api_root=None, user=None, password=None, config=None, log_level=logging.INFO):
+    def __init__(self, api_root=None, user=None, password=None, config=None,
+                 log_level=logging.INFO):
         """
         Create a `Session`.
 
@@ -45,7 +46,8 @@ class Session(object):
         :arg logging.LOG_LEVEL log_level: Control the level of log messages
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
-        self.config = Config(filename=config, api_root=api_root, user=user, password=password)
+        self.config = Config(filename=config, api_root=api_root, user=user,
+                             password=password)
         self.set_log_level(log_level)
         self._cached_uris = None
         self._api_errors = collections.defaultdict(lambda: ApiError,
