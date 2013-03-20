@@ -28,8 +28,8 @@ class TestConfig():
         """
         With no config files, we are left with default values.
         """
-        with patch.object(os.path, 'isfile') as isfile:
-            isfile.return_value = False
+        with patch.object(os.path, 'isfile') as mock_isfile:
+            mock_isfile.return_value = False
             c = config.Config()
         assert_equal(c.user, None)
         assert_equal(c.poll_sleep, config.DEFAULT_POLL_SLEEP)

@@ -51,6 +51,12 @@ class Resource(object):
     def __init__(self, session, fields):
         """
         Create a representation for a server resource.
+
+        :arg session: Manwë session.
+        :type session: :class:`manwe.Session`
+        :arg fields: Dictionary with field names (the dictionary keys) and
+            their values for this resource.
+        :type fields: dict
         """
         #: The session this resource is attached to as
         #: :class:`session.Session <Session>`.
