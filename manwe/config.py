@@ -2,9 +2,6 @@
 """
 Manwë configuration.
 
-All communication with this module should be done by using the get function
-which returns a configuration value, given a name.
-
 By default, configuration values are read from two locations, in this order:
 
 1. ``/etc/manwe/config``
@@ -91,8 +88,12 @@ class Config(object):
                     config = user_config
 
         # Any not-None keyword arguments overwrite existing values.
-        config.merge({key: value for key, value in values.items()
-                      if value is not None})
+        overwrite = {key: value for key, value in values.items()
+                     if value is not None}
+        if config:
+            config.merge(overwrite)
+        else:
+            config = ConfigObj(overwrite)
 
         self.api_root = config.get('api_root', DEFAULT_API_ROOT)
         self.user = config.get('user')
