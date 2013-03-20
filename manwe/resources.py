@@ -151,6 +151,52 @@ class ResourceCollection(object):
     __next__ = next
 
 
+class Annotation(Resource):
+    """
+    Base class for representing an annotation resource.
+    """
+    _immutable = ('uri', 'original_data_source_uri',
+                  'annotated_data_source_uri', 'written')
+
+
+class Coverage(Resource):
+    """
+    Base class for representing a coverage resource.
+    """
+    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+
+class DataSource(Resource):
+    """
+    Base class for representing a data source resource.
+    """
+    _mutable = ('name',)
+    _immutable = ('uri', 'user_uri', 'data_uri', 'name', 'filetype',
+                  'gzipped', 'added')
+
+    @property
+    def added(self):
+        added = self._fields.get('added')
+        if not added:
+            return None
+        return dateutil.parser.parse(added)
+
+
+class Variant(Resource):
+    """
+    Base class for representing a variant resource.
+    """
+    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
+                  'global_frequency', 'sample_frequency')
+
+
+class Variation(Resource):
+    """
+    Base class for representing a variation resource.
+    """
+    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+
 class Sample(Resource):
     """
     Base class for representing a sample resource.
@@ -174,10 +220,60 @@ class User(Resource):
     _immutable = ('uri', 'login', 'added')
 
 
+class AnnotationCollection(ResourceCollection):
+    """
+    Class for representing an annotation resource collection as an iterator
+    returning :class:`Annotation` instances.
+    """
+    _collection_uri = 'annotations'
+    _collection_key = 'annotations'
+    _resource_class = Annotation
+
+
+class CoverageCollection(ResourceCollection):
+    """
+    Class for representing a coverage resource collection as an iterator
+    returning :class:`Coverage` instances.
+    """
+    _collection_uri = 'coverages'
+    _collection_key = 'coverages'
+    _resource_class = Coverage
+
+
+class DataSourceCollection(ResourceCollection):
+    """
+    Class for representing a data source resource collection as an iterator
+    returning :class:`DataSource` instances.
+    """
+    _collection_uri = 'data_sources'
+    _collection_key = 'data_sources'
+    _resource_class = DataSource
+
+
+class VariantCollection(ResourceCollection):
+    """
+    Class for representing a variant resource collection as an iterator
+    returning :class:`Variant` instances.
+    """
+    _collection_uri = 'variants'
+    _collection_key = 'variants'
+    _resource_class = Variant
+
+
+class VariationCollection(ResourceCollection):
+    """
+    Class for representing a variation resource collection as an iterator
+    returning :class:`Variation` instances.
+    """
+    _collection_uri = 'variations'
+    _collection_key = 'variations'
+    _resource_class = Variation
+
+
 class SampleCollection(ResourceCollection):
     """
-    Class for representing sample resources collections, iterators returning
-    :class:`Resource` instances.
+    Class for representing a sample resource collection as an iterator
+    returning :class:`Sample` instances.
     """
     _collection_uri = 'samples'
     _collection_key = 'samples'
@@ -186,8 +282,8 @@ class SampleCollection(ResourceCollection):
 
 class UserCollection(ResourceCollection):
     """
-    Class for representing user resources collections, iterators returning
-    :class:`Resource` instances.
+    Class for representing a user resource collection as an iterator returning
+    :class:`User` instances.
     """
     _collection_uri = 'users'
     _collection_key = 'users'
