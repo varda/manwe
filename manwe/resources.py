@@ -77,34 +77,20 @@ class Resource(object):
         # Todo: On save, refresh all fields from server.
 
 
-class Sample(Resource):
-    """
-    Represents a sample.
-    """
-    _mutable = ('name', 'pool_size', 'coverage_profile', 'public')
-    _immutable = ('uri', 'user_uri', 'added')
-
-    @property
-    def added(self):
-        added = self._fields.get('added')
-        if not added:
-            return None
-        return dateutil.parser.parse(added)
-
-
-class User(Resource):
-    """
-    Represents a user.
-    """
-    _mutable = ('login', 'password', 'name', 'roles')
-    _immutable = ('uri', 'added')
-
-
-class SampleCollection(object):
+class ResourceCollection(object):
     """
     Base class for representing server resource collections, iterators
     returning :class:`Resource` instances.
     """
+    # Index in `Session.uris` for the URI to this collection.
+    _collection_uri = None
+
+    # Key in API collection response objects to the list of resources.
+    _collection_key = None
+
+    # Resource class to use for instantiating resources in this collection.
+    _resource_class = None
+
     def __init__(self, session):
         """
         Create a representation for a server resource collection.
@@ -132,10 +118,10 @@ class SampleCollection(object):
         # Todo: Use Range object from Werkzeug to construct this header.
         range = 'items=%d-%d' % (self._next,
                                  self._next + COLLECTION_CACHE_SIZE - 1)
-        response = self.session.get(self.session.uris['samples'],
+        response = self.session.get(self.session.uris[self._collection_uri],
                                     headers={'Range': range})
-        self._resources.extend(Sample(self.session, sample)
-                               for sample in response.json()['samples'])
+        self._resources.extend(self._resource_class(self.session, resource)
+                               for resource in response.json()[self._collection_key])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
         self.size = content_range.length
@@ -157,3 +143,46 @@ class SampleCollection(object):
 
     # Python 3 compatibility.
     __next__ = next
+
+
+class Sample(Resource):
+    """
+    Base class for representing a sample resource.
+    """
+    _mutable = ('name', 'pool_size', 'coverage_profile', 'public')
+    _immutable = ('uri', 'user_uri', 'added')
+
+    @property
+    def added(self):
+        added = self._fields.get('added')
+        if not added:
+            return None
+        return dateutil.parser.parse(added)
+
+
+class User(Resource):
+    """
+    Base class for representing a user resource.
+    """
+    _mutable = ('password', 'name', 'roles')
+    _immutable = ('uri', 'login', 'added')
+
+
+class SampleCollection(ResourceCollection):
+    """
+    Class for representing sample resources collections, iterators returning
+    :class:`Resource` instances.
+    """
+    _collection_uri = 'samples'
+    _collection_key = 'samples'
+    _resource_class = Sample
+
+
+class UserCollection(ResourceCollection):
+    """
+    Class for representing user resources collections, iterators returning
+    :class:`Resource` instances.
+    """
+    _collection_uri = 'users'
+    _collection_key = 'users'
+    _resource_class = User
