@@ -84,19 +84,19 @@ class Session(object):
 
     def get(self, *args, **kwargs):
         """
-        Short for :method:`request` where `method` is ``GET``.
+        Short for :meth:`request` where `method` is ``GET``.
         """
         return self.request('GET', *args, **kwargs)
 
     def post(self, *args, **kwargs):
         """
-        Short for :method:`request` where `method` is ``POST``.
+        Short for :meth:`request` where `method` is ``POST``.
         """
         return self.request('POST', *args, **kwargs)
 
     def patch(self, *args, **kwargs):
         """
-        Short for :method:`request` where `method` is ``PATCH``.
+        Short for :meth:`request` where `method` is ``PATCH``.
         """
         return self.request('PATCH', *args, **kwargs)
 

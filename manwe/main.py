@@ -62,9 +62,9 @@ from time import sleep
 import argparse
 import requests
 from requests import codes
-import simplejson as json
+import json
 
-from varda import API, USER, PASSWORD, POLL_SLEEP, MAX_POLLS
+#from varda import API, USER, PASSWORD, POLL_SLEEP, MAX_POLLS
 
 
 def get(location, *args, **kwargs):
