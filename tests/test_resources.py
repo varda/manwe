@@ -36,6 +36,24 @@ class TestResources():
         assert_equal(sample.public, False)
         assert_equal(sample.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
 
+    def test_read_sample_user(self):
+        """
+        Read user from a sample.
+        """
+        self.session.get_user.return_value = 'mock user'
+
+        fields =  {'name': 'test sample',
+                   'pool_size': 5,
+                   'coverage_profile': True,
+                   'public': False,
+                   'uri': '/samples/3',
+                   'user_uri': '/users/8',
+                   'added': '2012-11-23T10:55:12'}
+        sample = resources.Sample(self.session, fields)
+        user = sample.user
+        self.session.get_user.assert_called_once_with('/users/8')
+        assert_equal(user, 'mock user')
+
     def test_edit_sample(self):
         """
         Edit field values of a sample.
@@ -49,6 +67,7 @@ class TestResources():
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         sample.name = 'edited test sample'
+        assert sample.dirty
 
     @raises(AttributeError)
     def test_edit_immutable_sample(self):

@@ -158,12 +158,36 @@ class Annotation(Resource):
     _immutable = ('uri', 'original_data_source_uri',
                   'annotated_data_source_uri', 'written')
 
+    @property
+    def original_data_source(self):
+        if not self.original_data_source_uri:
+            return None
+        return self.session.get_data_source(self.original_data_source_uri)
+
+    @property
+    def annotated_data_source(self):
+        if not self.annotated_data_source_uri:
+            return None
+        return self.session.get_data_source(self.annotated_data_source_uri)
+
 
 class Coverage(Resource):
     """
     Base class for representing a coverage resource.
     """
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+    @property
+    def sample(self):
+        if not self.sample_uri:
+            return None
+        return self.session.get_sample(self.sample_uri)
+
+    @property
+    def data_source(self):
+        if not self.data_source_uri:
+            return None
+        return self.session.get_data_source(self.data_source_uri)
 
 
 class DataSource(Resource):
@@ -181,6 +205,12 @@ class DataSource(Resource):
             return None
         return dateutil.parser.parse(added)
 
+    @property
+    def user(self):
+        if not self.user_uri:
+            return None
+        return self.session.get_user(self.user_uri)
+
 
 class Variant(Resource):
     """
@@ -196,6 +226,18 @@ class Variation(Resource):
     """
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
 
+    @property
+    def sample(self):
+        if not self.sample_uri:
+            return None
+        return self.session.get_sample(self.sample_uri)
+
+    @property
+    def data_source(self):
+        if not self.data_source_uri:
+            return None
+        return self.session.get_data_source(self.data_source_uri)
+
 
 class Sample(Resource):
     """
@@ -210,6 +252,12 @@ class Sample(Resource):
         if not added:
             return None
         return dateutil.parser.parse(added)
+
+    @property
+    def user(self):
+        if not self.user_uri:
+            return None
+        return self.session.get_user(self.user_uri)
 
 
 class User(Resource):
