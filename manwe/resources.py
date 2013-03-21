@@ -19,6 +19,15 @@ class _Resource(object):
     """
     Base class for representing server resources.
     """
+    # Note: Any structured fields (such as lists and dicts) defined in
+    #     `_mutable`, won't just work with the getters and setters defined
+    #     for them automatically below. This is because they can be modified
+    #     without touching the setter method.
+    #     Example: calling `resource.list_field.append(value)` will not add
+    #     the `list_field` to the set of dirty fields.
+    #     One solution for this, as implemented for the `roles` field for the
+    #     `User` resource, is to have an immutable field value (frozenset in
+    #     this case) and define separate methods for updating the field.
     _mutable = ()
     _immutable = ()
 
@@ -34,9 +43,6 @@ class _Resource(object):
             return getter_for_name
         def setter(name):
             def setter_for_name(self, value):
-                # Todo: This won't work for structured values such as lists
-                #     or dictionaries (user.roles), since they can be modified
-                #     without touching the setter method.
                 self._dirty.add(name)
                 self._fields[name] = value
             return setter_for_name
