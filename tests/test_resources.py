@@ -137,6 +137,7 @@ class TestSample():
                    'user_uri': '/users/8',
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
+        assert not sample.dirty
         sample.name = 'edited test sample'
         assert sample.dirty
 
@@ -232,8 +233,85 @@ class TestUser():
 
         user = resources.User(self.session, fields)
         assert_equal(user.uri, '/users/4')
-        assert_equal(user.roles, ['importer'])
+        assert_equal(user.roles, {'importer'})
         assert_equal(user.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+
+    def test_edit_user(self):
+        """
+        Edit field values of a user.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        assert not user.dirty
+        user.name = 'edited test user'
+        assert user.dirty
+
+    @raises(AttributeError)
+    def test_add_user_role_directly(self):
+        """
+        Try to add role to a user directly.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        user.roles.add('annotator')
+
+    def test_add_user_role(self):
+        """
+        Add role to a user.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        assert not user.dirty
+        user.add_role('annotator')
+        assert user.dirty
+        assert_equal(user.roles, {'importer', 'annotator'})
+
+    def test_remove_user_role(self):
+        """
+        Remove role from a user.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        assert not user.dirty
+        user.remove_role('importer')
+        assert user.dirty
+        assert_equal(user.roles, set())
+
+    def test_edit_user_role(self):
+        """
+        Edit roles field values of a user.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        assert not user.dirty
+        user.roles = {'importer', 'annotator'}
+        assert user.dirty
+        assert_equal(user.roles, {'importer', 'annotator'})
 
 
 class TestVariant():

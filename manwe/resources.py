@@ -82,7 +82,7 @@ class Resource(object):
         if self.dirty:
             self.session.request(self._fields['uri'], method='PATCH',
                                  data={k: self._fields[k] for k in self._dirty})
-            self._dirty = set()
+            self._dirty.clear()
         # Todo: On save, refresh all fields from server.
 
 
@@ -163,14 +163,10 @@ class Annotation(Resource):
 
     @property
     def original_data_source(self):
-        if not self.original_data_source_uri:
-            return None
         return self.session.data_source(self.original_data_source_uri)
 
     @property
     def annotated_data_source(self):
-        if not self.annotated_data_source_uri:
-            return None
         return self.session.data_source(self.annotated_data_source_uri)
 
 
@@ -182,14 +178,10 @@ class Coverage(Resource):
 
     @property
     def sample(self):
-        if not self.sample_uri:
-            return None
         return self.session.sample(self.sample_uri)
 
     @property
     def data_source(self):
-        if not self.data_source_uri:
-            return None
         return self.session.data_source(self.data_source_uri)
 
 
@@ -203,15 +195,10 @@ class DataSource(Resource):
 
     @property
     def added(self):
-        added = self._fields.get('added')
-        if not added:
-            return None
-        return dateutil.parser.parse(added)
+        return dateutil.parser.parse(self._fields['added'])
 
     @property
     def user(self):
-        if not self.user_uri:
-            return None
         return self.session.user(self.user_uri)
 
 
@@ -224,15 +211,10 @@ class Sample(Resource):
 
     @property
     def added(self):
-        added = self._fields.get('added')
-        if not added:
-            return None
-        return dateutil.parser.parse(added)
+        return dateutil.parser.parse(self._fields['added'])
 
     @property
     def user(self):
-        if not self.user_uri:
-            return None
         return self.session.user(self.user_uri)
 
 
@@ -248,10 +230,28 @@ class User(Resource):
 
     @property
     def added(self):
-        added = self._fields.get('added')
-        if not added:
-            return None
-        return dateutil.parser.parse(added)
+        return dateutil.parser.parse(self._fields['added'])
+
+    @property
+    def roles(self):
+        return frozenset(self._fields['roles'])
+
+    @roles.setter
+    def roles(self, roles):
+        self._dirty.add('roles')
+        self._fields['roles'] = list(roles)
+
+    def add_role(self, role):
+        self._dirty.add('roles')
+        roles = set(self._fields['roles'])
+        roles.add(role)
+        self._fields['roles'] = list(roles)
+
+    def remove_role(self, role):
+        self._dirty.add('roles')
+        roles = set(self._fields['roles'])
+        roles.remove(role)
+        self._fields['roles'] = list(roles)
 
 
 class Variant(Resource):
@@ -270,14 +270,10 @@ class Variation(Resource):
 
     @property
     def sample(self):
-        if not self.sample_uri:
-            return None
         return self.session.sample(self.sample_uri)
 
     @property
     def data_source(self):
-        if not self.data_source_uri:
-            return None
         return self.session.data_source(self.data_source_uri)
 
 
