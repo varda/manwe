@@ -59,6 +59,16 @@ def import_sample(name, pool_size=1, public=False, coverage_profile=True,
         session.add_coverage(sample, data_source)
 
 
+def show_sample(uri, config=None):
+    """
+    Show sample details.
+    """
+    session = Session(config=config)
+    sample = session.sample(uri)
+
+    print 'Sample: %s' % sample.name
+
+
 if __name__ == '__main__':
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument('--config', metavar='CONFIG_FILE', type=str,
@@ -91,6 +101,11 @@ if __name__ == '__main__':
     p.add_argument('--no-coverage-profile', dest='no_coverage_profile',
                    action='store_true', help='Sample has no coverage profile')
 
+    p = subparsers.add_parser('sample', help='show sample details',
+                              description=show_sample.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
+
     args = parser.parse_args()
 
     if args.subcommand == 'import':
@@ -98,3 +113,6 @@ if __name__ == '__main__':
                       coverage_profile=not args.no_coverage_profile,
                       vcf_files=args.vcf_files, bed_files=args.bed_files,
                       config=args.config)
+
+    if args.subcommand == 'sample':
+        show_sample(args.uri, config=args.config)
