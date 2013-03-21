@@ -162,13 +162,13 @@ class Annotation(Resource):
     def original_data_source(self):
         if not self.original_data_source_uri:
             return None
-        return self.session.get_data_source(self.original_data_source_uri)
+        return self.session.data_source(self.original_data_source_uri)
 
     @property
     def annotated_data_source(self):
         if not self.annotated_data_source_uri:
             return None
-        return self.session.get_data_source(self.annotated_data_source_uri)
+        return self.session.data_source(self.annotated_data_source_uri)
 
 
 class Coverage(Resource):
@@ -181,13 +181,13 @@ class Coverage(Resource):
     def sample(self):
         if not self.sample_uri:
             return None
-        return self.session.get_sample(self.sample_uri)
+        return self.session.sample(self.sample_uri)
 
     @property
     def data_source(self):
         if not self.data_source_uri:
             return None
-        return self.session.get_data_source(self.data_source_uri)
+        return self.session.data_source(self.data_source_uri)
 
 
 class DataSource(Resource):
@@ -209,34 +209,7 @@ class DataSource(Resource):
     def user(self):
         if not self.user_uri:
             return None
-        return self.session.get_user(self.user_uri)
-
-
-class Variant(Resource):
-    """
-    Base class for representing a variant resource.
-    """
-    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
-                  'global_frequency', 'sample_frequency')
-
-
-class Variation(Resource):
-    """
-    Base class for representing a variation resource.
-    """
-    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
-
-    @property
-    def sample(self):
-        if not self.sample_uri:
-            return None
-        return self.session.get_sample(self.sample_uri)
-
-    @property
-    def data_source(self):
-        if not self.data_source_uri:
-            return None
-        return self.session.get_data_source(self.data_source_uri)
+        return self.session.user(self.user_uri)
 
 
 class Sample(Resource):
@@ -257,7 +230,7 @@ class Sample(Resource):
     def user(self):
         if not self.user_uri:
             return None
-        return self.session.get_user(self.user_uri)
+        return self.session.user(self.user_uri)
 
 
 class User(Resource):
@@ -266,6 +239,33 @@ class User(Resource):
     """
     _mutable = ('password', 'name', 'roles')
     _immutable = ('uri', 'login', 'added')
+
+
+class Variant(Resource):
+    """
+    Base class for representing a variant resource.
+    """
+    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
+                  'global_frequency', 'sample_frequency')
+
+
+class Variation(Resource):
+    """
+    Base class for representing a variation resource.
+    """
+    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+    @property
+    def sample(self):
+        if not self.sample_uri:
+            return None
+        return self.session.sample(self.sample_uri)
+
+    @property
+    def data_source(self):
+        if not self.data_source_uri:
+            return None
+        return self.session.data_source(self.data_source_uri)
 
 
 class AnnotationCollection(ResourceCollection):
@@ -298,26 +298,6 @@ class DataSourceCollection(ResourceCollection):
     _resource_class = DataSource
 
 
-class VariantCollection(ResourceCollection):
-    """
-    Class for representing a variant resource collection as an iterator
-    returning :class:`Variant` instances.
-    """
-    _collection_uri = 'variants'
-    _collection_key = 'variants'
-    _resource_class = Variant
-
-
-class VariationCollection(ResourceCollection):
-    """
-    Class for representing a variation resource collection as an iterator
-    returning :class:`Variation` instances.
-    """
-    _collection_uri = 'variations'
-    _collection_key = 'variations'
-    _resource_class = Variation
-
-
 class SampleCollection(ResourceCollection):
     """
     Class for representing a sample resource collection as an iterator
@@ -336,3 +316,23 @@ class UserCollection(ResourceCollection):
     _collection_uri = 'users'
     _collection_key = 'users'
     _resource_class = User
+
+
+class VariantCollection(ResourceCollection):
+    """
+    Class for representing a variant resource collection as an iterator
+    returning :class:`Variant` instances.
+    """
+    _collection_uri = 'variants'
+    _collection_key = 'variants'
+    _resource_class = Variant
+
+
+class VariationCollection(ResourceCollection):
+    """
+    Class for representing a variation resource collection as an iterator
+    returning :class:`Variation` instances.
+    """
+    _collection_uri = 'variations'
+    _collection_key = 'variations'
+    _resource_class = Variation

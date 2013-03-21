@@ -40,7 +40,7 @@ class TestResources():
         """
         Read user from a sample.
         """
-        self.session.get_user.return_value = 'mock user'
+        self.session.user.return_value = 'mock user'
 
         fields =  {'name': 'test sample',
                    'pool_size': 5,
@@ -51,7 +51,7 @@ class TestResources():
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         user = sample.user
-        self.session.get_user.assert_called_once_with('/users/8')
+        self.session.user.assert_called_once_with('/users/8')
         assert_equal(user, 'mock user')
 
     def test_edit_sample(self):
