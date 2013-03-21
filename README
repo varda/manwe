@@ -46,7 +46,7 @@ Create a Python virtual environment and install the requirements:
 
 Run the client with the -h argument for usage information:
 
-    $ python -m manwe.main -h
+    $ python -m manwe.commands -h
 
 
 Documentation
