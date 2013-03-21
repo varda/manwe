@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Manwë resources.
+
+.. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
+
+.. Licensed under the MIT license, see the LICENSE file.
 """
 
 

@@ -5,7 +5,7 @@ database for genomic variation frequencies.
 
 .. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
 
-.. Licensed under the MIT license, see the LICENSE file
+.. Licensed under the MIT license, see the LICENSE file.
 """
 
 

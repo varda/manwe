@@ -16,6 +16,10 @@ the configuration is read from `filename`.
 
 Additionally, any keyword arguments passed to :class:`Config` other than
 `filename` will overwrite values read from a file.
+
+.. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
+
+.. Licensed under the MIT license, see the LICENSE file.
 """
 
 
