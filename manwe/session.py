@@ -258,17 +258,22 @@ class Session(object):
         response = self.post(self.uris['coverages'], data=data)
         return self.coverage(response.json()['coverage_uri'])
 
-    def add_data_source(self, name, filetype, gzipped=False, local_file=None):
+    def add_data_source(self, name, filetype, gzipped=False, data=None,
+                        local_file=None):
         """
         Create a new sample resource.
         """
-        # Todo: Upload file.
-        data = {'name': name,
-                'filetype': filetype,
-                'gzipped': gzipped,
-                'local_file': local_file}
-        response = self.post(self.uris['data_sources'], data=data)
-        return self.data_source(response.json()['data_source_uri'])
+        post_data = {'name': name,
+                     'filetype': filetype,
+                     'gzipped': gzipped,
+                     'local_file': local_file}
+        if data is None:
+            files = None
+        else:
+            files = {'data': data}
+        response = self.post(self.uris['data_sources'], data=post_data,
+                             files=files)
+        #return self.data_source(response.json()['data_source_uri'])
 
     def add_sample(self, name, pool_size=1, coverage_profile=True,
                    public=False):
