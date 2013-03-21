@@ -206,7 +206,7 @@ class Sample(Resource):
     """
     Base class for representing a sample resource.
     """
-    _mutable = ('name', 'pool_size', 'coverage_profile', 'public')
+    _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active')
     _immutable = ('uri', 'user_uri', 'added')
 
     @property

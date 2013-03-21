@@ -100,6 +100,7 @@ class TestSample():
                    'public': False,
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
+                   'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         assert_equal(sample.name, 'test sample')
@@ -119,6 +120,7 @@ class TestSample():
                    'public': False,
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
+                   'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         user = sample.user
@@ -135,6 +137,7 @@ class TestSample():
                    'public': False,
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
+                   'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         assert not sample.dirty
@@ -152,6 +155,7 @@ class TestSample():
                    'public': False,
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
+                   'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         sample.uri = '/some/uri/88'
@@ -166,6 +170,7 @@ class TestSample():
                    'public': False,
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
+                   'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         sample.name = 'edited test sample'
@@ -188,6 +193,7 @@ class TestSample():
                     'public': False,
                     'uri': '/samples/%i' % i,
                     'user_uri': '/users/8',
+                    'active': True,
                     'added': '2012-11-23T10:55:12'}
         def create_mock_response(start, end, total):
             samples = [create_sample(i) for i in range(start, end)]
