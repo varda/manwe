@@ -12,7 +12,7 @@ import requests
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
-from .resources import Sample, SampleCollection, User
+from . import resources
 
 
 logger = logging.getLogger('manwe')
@@ -144,91 +144,91 @@ class Session(object):
         Get an annotation resource by URI.
         """
         response = self.get(uri)
-        return Annotation(self, response.json()['annotation'])
+        return resources.Annotation(self, response.json()['annotation'])
 
     def coverage(self, uri):
         """
         Get a coverage resource by URI.
         """
         response = self.get(uri)
-        return Coverage(self, response.json()['coverage'])
+        return resources.Coverage(self, response.json()['coverage'])
 
     def data_source(self, uri):
         """
         Get a data source resource by URI.
         """
         response = self.get(uri)
-        return DataSource(self, response.json()['data_source'])
+        return resources.DataSource(self, response.json()['data_source'])
 
     def sample(self, uri):
         """
         Get a sample resource by URI.
         """
         response = self.get(uri)
-        return Sample(self, response.json()['sample'])
+        return resources.Sample(self, response.json()['sample'])
 
     def user(self, uri):
         """
         Get a user resource by URI.
         """
         response = self.get(uri)
-        return User(self, response.json()['user'])
+        return resources.User(self, response.json()['user'])
 
     def variant(self, uri):
         """
         Get a variant resource by URI.
         """
         response = self.get(uri)
-        return Variant(self, response.json()['variant'])
+        return resources.Variant(self, response.json()['variant'])
 
     def variation(self, uri):
         """
         Get a variation resource by URI.
         """
         response = self.get(uri)
-        return Variation(self, response.json()['variation'])
+        return resources.Variation(self, response.json()['variation'])
 
     def annotations(self):
         """
         Returns a :class:`AnnotationCollection` instance.
         """
-        return AnnotationCollection(self)
+        return resources.AnnotationCollection(self)
 
     def coverages(self):
         """
         Returns a :class:`CoverageCollection` instance.
         """
-        return CoverageCollection(self)
+        return resources.CoverageCollection(self)
 
     def data_sources(self):
         """
         Returns a :class:`DataSourceCollection` instance.
         """
-        return DataSourceCollection(self)
+        return resources.DataSourceCollection(self)
 
     def samples(self):
         """
         Returns a :class:`SampleCollection` instance.
         """
-        return SampleCollection(self)
+        return resources.SampleCollection(self)
 
     def users(self):
         """
         Returns a :class:`UserCollection` instance.
         """
-        return UserCollection(self)
+        return resources.UserCollection(self)
 
     def variants(self):
         """
         Returns a :class:`VariantCollection` instance.
         """
-        return VariantCollection(self)
+        return resources.VariantCollection(self)
 
     def variations(self):
         """
         Returns a :class:`VariationCollection` instance.
         """
-        return VariationCollection(self)
+        return resources.VariationCollection(self)
 
     def add_annotation(self, data_source, global_frequency=True,
                        sample_frequency=None, exclude=None):

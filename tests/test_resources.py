@@ -12,9 +12,80 @@ import requests
 from manwe import resources, session
 
 
-class TestResources():
+class TestAnnotation():
     """
-    Test :mod:`manwe.resources`.
+    Test :class:`manwe.resources.Annotation` and :class:`manwe.resources.AnnotationCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_annotation(self):
+        """
+        Read field values from an annotation with correct types.
+        """
+        fields = dict(uri='/annotations/3',
+                      original_data_source_uri='/data_sources/4',
+                      annotated_data_source_uri='/data_sources/6',
+                      written=True)
+
+        annotation = resources.Annotation(self.session, fields)
+        assert_equal(annotation.uri, '/annotations/3')
+        assert_equal(annotation.written, True)
+
+
+class TestCoverage():
+    """
+    Test :class:`manwe.resources.Coverage` and :class:`manwe.resources.CoverageCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_coverage(self):
+        """
+        Read field values from a coverage with correct types.
+        """
+        fields = dict(uri='/coverages/8',
+                      sample_uri='/samples/3',
+                      data_source_uri='/data_sources/1',
+                      imported=True)
+
+        coverage = resources.Coverage(self.session, fields)
+        assert_equal(coverage.uri, '/coverages/8')
+        assert_equal(coverage.imported, True)
+
+
+class TestDataSource():
+    """
+    Test :class:`manwe.resources.DataSource` and :class:`manwe.resources.DataSourceCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_data_source(self):
+        """
+        Read field values from a data source with correct types.
+        """
+        fields = dict(uri='/data_sources/4',
+                      name='test',
+                      user_uri='/users/2',
+                      data_uri='/data_sources/4/data',
+                      filetype='test',
+                      gzipped=True,
+                      added='2012-11-23T10:55:12')
+
+        data_source = resources.DataSource(self.session, fields)
+        assert_equal(data_source.uri, '/data_sources/4')
+        assert_equal(data_source.gzipped, True)
+        assert_equal(data_source.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+
+
+class TestSample():
+    """
+    Test :class:`manwe.resources.Sample` and :class:`manwe.resources.SampleCollection`
+    classes.
     """
     def setup(self):
         self.session = Mock(session.Session, uris={'samples': '/samples'})
@@ -139,3 +210,76 @@ class TestResources():
         assert_equal(len(sample_list), total)
         assert_equal(sample_list[0].name, 'test sample 1')
         assert_equal(sample_list[-1].name, 'test sample %i' % total)
+
+
+class TestUser():
+    """
+    Test :class:`manwe.resources.User` and :class:`manwe.resources.UserCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_user(self):
+        """
+        Read field values from a user with correct types.
+        """
+        fields = dict(uri='/users/4',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+
+        user = resources.User(self.session, fields)
+        assert_equal(user.uri, '/users/4')
+        assert_equal(user.roles, ['importer'])
+        assert_equal(user.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+
+
+class TestVariant():
+    """
+    Test :class:`manwe.resources.Variant` and :class:`manwe.resources.VariantCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_variant(self):
+        """
+        Read field values from a variant with correct types.
+        """
+        fields = dict(uri='/variants/3',
+                      chromosome='chr5',
+                      position=45353,
+                      reference='AT',
+                      observed='TA',
+                      global_frequency=(0.4, [0.3, 0.1]),
+                      sample_frequency=[(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])])
+
+        variant = resources.Variant(self.session, fields)
+        assert_equal(variant.uri, '/variants/3')
+        assert_equal(variant.position, 45353)
+        assert_equal(variant.global_frequency, (0.4, [0.3, 0.1]))
+        assert_equal(variant.sample_frequency, [(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])])
+
+
+class TestVariation():
+    """
+    Test :class:`manwe.resources.Variation` and :class:`manwe.resources.VariationCollection`
+    classes.
+    """
+    def setup(self):
+        self.session = Mock(session.Session)
+
+    def test_read_variation(self):
+        """
+        Read field values from a variation with correct types.
+        """
+        fields = dict(uri='/variations/23',
+                      sample_uri='/samples/3',
+                      data_source_uri='/data_sources/6',
+                      imported=True)
+
+        variation = resources.Variation(self.session, fields)
+        assert_equal(variation.uri, '/variations/23')
+        assert_equal(variation.imported, True)

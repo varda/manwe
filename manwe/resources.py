@@ -34,6 +34,9 @@ class Resource(object):
             return getter_for_name
         def setter(name):
             def setter_for_name(self, value):
+                # Todo: This won't work for structured values such as lists
+                #     or dictionaries (user.roles), since they can be modified
+                #     without touching the setter method.
                 self._dirty.add(name)
                 self._fields[name] = value
             return setter_for_name
@@ -237,8 +240,18 @@ class User(Resource):
     """
     Base class for representing a user resource.
     """
+    # Todo: Should password be an ordinary field (with initial None) value
+    #     like it is now? Or should we modify it through some change_password
+    #     method?
     _mutable = ('password', 'name', 'roles')
     _immutable = ('uri', 'login', 'added')
+
+    @property
+    def added(self):
+        added = self._fields.get('added')
+        if not added:
+            return None
+        return dateutil.parser.parse(added)
 
 
 class Variant(Resource):
