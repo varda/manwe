@@ -235,17 +235,15 @@ class Session(object):
         return resources.VariationCollection(self)
 
     def add_annotation(self, data_source, global_frequency=True,
-                       sample_frequency=None, exclude=None):
+                       sample_frequency=None):
         """
         Create a new annotation resource.
         """
         sample_frequency = sample_frequency or []
-        exclude = exclude or []
 
         data = {'data_source': data_source.uri,
                 'global_frequency': global_frequency,
-                'sample_frequency': [sample.uri for sample in sample_frequency],
-                'exclude': [sample.uri for sample in exclude]}
+                'sample_frequency': [sample.uri for sample in sample_frequency]}
         response = self.post(self.uris['annotations'], data=data)
         return self.annotation(response.json()['annotation_uri'])
 
