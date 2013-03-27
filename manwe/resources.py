@@ -32,6 +32,10 @@ class _Resource(object):
     #     One solution for this, as implemented for the `roles` field for the
     #     `User` resource, is to have an immutable field value (frozenset in
     #     this case) and define separate methods for updating the field.
+    #     Another approach would be something similar to the `MutableDict`
+    #     type in SQLAlchemy [1].
+    #
+    # [1] http://docs.sqlalchemy.org/en/latest/orm/extensions/mutable.html
     _mutable = ()
     _immutable = ()
 
