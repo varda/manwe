@@ -31,7 +31,8 @@ def abort(message=None):
 
 
 def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
-                  vcf_files=None, bed_files=None, config=None):
+                  vcf_files=None, bed_files=None, data_uploaded=False,
+                  config=None):
     """
     Add sample and import variantion and coverage files.
     """
@@ -44,26 +45,34 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
     if not no_coverage_profile and not bed_files:
         abort('Expected at least one BED file')
 
+    # Todo: Nice error if file cannot be read.
+    vcf_sources = [({'local_file': vcf_file}, vcf_file) if data_uploaded else
+                   ({'data': open(vcf_file)}, vcf_file.name)
+                   for vcf_file in vcf_files]
+    bed_sources = [({'local_file': bed_file}, bed_file) if data_uploaded else
+                   ({'data': open(bed_file)}, bed_file.name)
+                   for bed_file in bed_files]
+
     session = Session(config=config)
 
     sample = session.add_sample(name, pool_size=pool_size,
                                 coverage_profile=not coverage_profile,
                                 public=public)
 
-    for vcf_file in vcf_files:
+    for source, filename in vcf_sources:
         data_source = session.add_data_source(
-            'Variants from file "%s"' % vcf_file.name,
+            'Variants from file "%s"' % filename,
             filetype='vcf',
-            gzipped=vcf_file.name.endswith('.gz'),
-            data=vcf_file)
+            gzipped=filename.endswith('.gz'),
+            **source)
         session.add_variation(sample, data_source)
 
-    for bed_file in bed_files:
+    for source, filename in bed_sources:
         data_source = session.add_data_source(
-            'Regions from file "%s"' % bed_file.name,
+            'Regions from file "%s"' % filename,
             filetype='bed',
-            gzipped=vcf_file.name.endswith('.gz'),
-            data=bed_file)
+            gzipped=filename.endswith('.gz'),
+            **source)
         session.add_coverage(sample, data_source)
 
 
@@ -135,12 +144,15 @@ def main():
                               parents=[config_parser])
     p.set_defaults(func=import_sample)
     p.add_argument('name', metavar='NAME', type=str, help='sample name')
-    p.add_argument('--vcf', metavar='VCF_FILE', type=argparse.FileType('r'),
-                   dest='vcf_files', nargs='+', required=True,
+    p.add_argument('--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
+                   required=True,
                    help='file in VCF 4.1 format to import variants from')
-    p.add_argument('--bed', metavar='BED_FILE', type=argparse.FileType('r'),
-                   dest='bed_files', nargs='+', required=False, default=[],
+    p.add_argument('--bed', metavar='BED_FILE', dest='bed_files', nargs='+',
+                   required=False, default=[],
                    help='file in BED format to import covered regions from')
+    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
+                   action='store_true', help='data files are already '
+                   'uploaded to the server')
     p.add_argument('-s', '--pool-size', dest='pool_size', default=1, type=int,
                    help='number of individuals in sample (default: 1)')
     p.add_argument('-p', '--public', dest='public', action='store_true',
