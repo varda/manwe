@@ -111,9 +111,13 @@ class Session(object):
         :raises requests.RequestException: Exception occurred while handling
             an API request.
         """
+        # Note: If the `files` keyword argument is set, we don't encode the
+        #     `data` argument as JSON, since that cannot be combined with a
+        #     file upload. The consequence is that we cannot have nested or
+        #     structured data in the `data` argument.
         headers = kwargs.pop('headers', {})
         uri = self._qualified_uri(uri)
-        if 'data' in kwargs:
+        if 'data' in kwargs and not 'files' in kwargs:
             kwargs['data'] = json.dumps(kwargs['data'])
             headers['content-type'] = 'application/json'
         kwargs['auth'] = self.config.user, self.config.password
@@ -263,15 +267,16 @@ class Session(object):
         """
         post_data = {'name': name,
                      'filetype': filetype,
-                     'gzipped': gzipped,
-                     'local_file': local_file}
+                     'gzipped': gzipped}
+        if local_file:
+            post_data.update(local_file=local_file)
         if data is None:
             files = None
         else:
             files = {'data': data}
         response = self.post(self.uris['data_sources'], data=post_data,
                              files=files)
-        #return self.data_source(response.json()['data_source_uri'])
+        return self.data_source(response.json()['data_source_uri'])
 
     def add_sample(self, name, pool_size=1, coverage_profile=True,
                    public=False):

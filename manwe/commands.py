@@ -47,17 +47,19 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
 
     # Todo: Nice error if file cannot be read.
     vcf_sources = [({'local_file': vcf_file}, vcf_file) if data_uploaded else
-                   ({'data': open(vcf_file)}, vcf_file.name)
+                   ({'data': open(vcf_file)}, vcf_file)
                    for vcf_file in vcf_files]
     bed_sources = [({'local_file': bed_file}, bed_file) if data_uploaded else
-                   ({'data': open(bed_file)}, bed_file.name)
+                   ({'data': open(bed_file)}, bed_file)
                    for bed_file in bed_files]
 
     session = Session(config=config)
 
     sample = session.add_sample(name, pool_size=pool_size,
-                                coverage_profile=not coverage_profile,
+                                coverage_profile=not no_coverage_profile,
                                 public=public)
+
+    log('Added sample: %s' % sample.uri)
 
     for source, filename in vcf_sources:
         data_source = session.add_data_source(
@@ -65,7 +67,9 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
             filetype='vcf',
             gzipped=filename.endswith('.gz'),
             **source)
-        session.add_variation(sample, data_source)
+        log('Added data source: %s' % data_source.uri)
+        variation = session.add_variation(sample, data_source)
+        log('Started variation import: %s' % variation.uri)
 
     for source, filename in bed_sources:
         data_source = session.add_data_source(
@@ -73,7 +77,9 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
             filetype='bed',
             gzipped=filename.endswith('.gz'),
             **source)
-        session.add_coverage(sample, data_source)
+        log('Added data source: %s' % data_source.uri)
+        coverage = session.add_coverage(sample, data_source)
+        log('Started coverage import: %s' % coverage.uri)
 
 
 def show_sample(uri, config=None):
@@ -83,8 +89,12 @@ def show_sample(uri, config=None):
     session = Session(config=config)
     sample = session.sample(uri)
 
-    print 'Sample:  %s' % sample.uri
-    print 'Name:    %s' % sample.name
+    print 'Sample:      %s' % sample.uri
+    print 'Name:        %s' % sample.name
+    print 'User name:   %s' % sample.user.name
+    print 'Pool size:   %i' % sample.pool_size
+    print 'Visibility:  %s' % ('public' if sample.public else 'private')
+    print 'State:       %s' % ('active' if sample.active else 'inactive')
 
 
 def add_user(login, password, name=None, config=None, **kwargs):
@@ -100,7 +110,7 @@ def add_user(login, password, name=None, config=None, **kwargs):
 
     # Todo: Define roles as constant.
     roles = ('admin', 'importer', 'annotator', 'trader')
-    selected_roles = [role for role in roles if kwargs.get(role)]
+    selected_roles = [role for role in roles if kwargs.get('role_' + role)]
 
     user = session.add_user(login, password, name=name, roles=selected_roles)
 
