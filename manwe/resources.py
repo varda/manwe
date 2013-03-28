@@ -272,6 +272,7 @@ class Variant(_Resource):
     """
     Base class for representing a variant resource.
     """
+    # Todo: The API for this resource has been changed.
     _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
                   'global_frequency', 'sample_frequency')
 
