@@ -192,6 +192,9 @@ class _ResourceCollection(object):
                                         headers={'Range': range_.to_header()},
                                         data=self._args)
         except UnsatisfiableRangeError:
+            # Todo: If we'd store the response object in the error object, we
+            #     could check for the Content-Range header and if it's present
+            #     use it to set `self.size`.
             self.size = 0
             self._next = None
             return

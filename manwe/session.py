@@ -146,6 +146,7 @@ class Session(object):
             code = response.reason
             message = response.text[:78]
         logger.debug('API error code', code, message)
+        # Todo: Perhaps also store the response object in the error object?
         raise self._api_errors[response.status_code](code, message)
 
     def annotation(self, uri):
