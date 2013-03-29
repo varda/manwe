@@ -47,6 +47,6 @@ except ImportError:
 logging.getLogger('manwe').addHandler(NullHandler())
 
 
-from .errors import (ApiError, BadRequestError, UnauthorizedError,
-                     ForbiddenError, NotFoundError)
+from .errors import (ApiError, BadRequestError, ForbiddenError, NotFoundError,
+                     UnauthorizedError, UnsatisfiableRangeError)
 from .session import Session

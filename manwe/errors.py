@@ -18,13 +18,17 @@ class BadRequestError(ApiError):
     pass
 
 
-class UnauthorizedError(ApiError):
-    pass
-
-
 class ForbiddenError(ApiError):
     pass
 
 
 class NotFoundError(ApiError):
+    pass
+
+
+class UnauthorizedError(ApiError):
+    pass
+
+
+class UnsatisfiableRangeError(ApiError):
     pass

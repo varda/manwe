@@ -14,8 +14,8 @@ import logging
 import requests
 
 from .config import Config
-from .errors import (ApiError, BadRequestError, UnauthorizedError,
-                     ForbiddenError, NotFoundError)
+from .errors import (ApiError, BadRequestError, ForbiddenError, NotFoundError,
+                     UnauthorizedError, UnsatisfiableRangeError)
 from . import resources
 
 
@@ -54,11 +54,12 @@ class Session(object):
                              password=password)
         self.set_log_level(log_level)
         self._cached_uris = None
-        self._api_errors = collections.defaultdict(lambda: ApiError,
-                                                   {400: BadRequestError,
-                                                    401: UnauthorizedError,
-                                                    403: ForbiddenError,
-                                                    404: NotFoundError})
+        self._api_errors = collections.defaultdict(
+            lambda: ApiError, {400: BadRequestError,
+                               401: UnauthorizedError,
+                               403: ForbiddenError,
+                               404: NotFoundError,
+                               416: UnsatisfiableRangeError})
 
     def set_log_level(self, log_level):
         """
@@ -129,8 +130,7 @@ class Session(object):
         except requests.RequestException as e:
             logger.warn('Unable to make API request', method, uri)
             raise
-        if response.status_code in (200, 201, 202):
-            # Todo: What if no JSON?
+        if response.status_code in (200, 201, 202, 206):
             logger.debug('Successful API response', method, uri,
                          response.status_code)
             return response

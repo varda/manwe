@@ -12,9 +12,10 @@ import collections
 import json
 
 import dateutil.parser
+import werkzeug.datastructures
 import werkzeug.http
 
-from .errors import NotFoundError
+from .errors import NotFoundError, UnsatisfiableRangeError
 
 
 COLLECTION_CACHE_SIZE = 20
@@ -184,15 +185,20 @@ class _ResourceCollection(object):
         if self._next is None:
             return
         # Todo: Use Range object from Werkzeug to construct this header.
-        range = 'items=%d-%d' % (self._next,
-                                 self._next + COLLECTION_CACHE_SIZE - 1)
-        response = self.session.get(self.session.uris[self._collection_uri],
-                                    headers={'Range': range}, data=self._args)
+        range_ = werkzeug.datastructures.Range(
+            'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
+        try:
+            response = self.session.get(self.session.uris[self._collection_uri],
+                                        headers={'Range': range_.to_header()},
+                                        data=self._args)
+        except UnsatisfiableRangeError:
+            self.size = 0
+            self._next = None
+            return
         self._resources.extend(self._resource_class(self.session, resource)
                                for resource in response.json()[self._collection_key])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
-        # Todo: For empty collections, `content_range` is `None`.
         self.size = content_range.length
         if content_range.stop < content_range.length:
             self._next += COLLECTION_CACHE_SIZE
