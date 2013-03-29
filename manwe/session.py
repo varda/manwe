@@ -9,6 +9,7 @@ Manwë sessions.
 
 
 import collections
+import functools
 import json
 import logging
 import requests
@@ -41,6 +42,14 @@ class Session(object):
         >>> sample.dirty
         False
     """
+    _collections = {c.key: c for c in (resources.AnnotationCollection,
+                                       resources.CoverageCollection,
+                                       resources.DataSourceCollection,
+                                       resources.SampleCollection,
+                                       resources.UserCollection,
+                                       resources.VariantCollection,
+                                       resources.VariationCollection)}
+
     def __init__(self, api_root=None, user=None, password=None, config=None,
                  log_level=logging.INFO):
         """
@@ -74,10 +83,10 @@ class Session(object):
         """
         if not self._cached_uris:
             response = self.get(self.config.api_root).json()
-            self._cached_uris = {key: response[key + '_uri'] for key in
-                                 ('authentication', 'users', 'samples',
-                                  'variations', 'coverages', 'data_sources',
-                                  'annotations', 'variants')}
+            self._cached_uris = {key + 's': response[key + 's_uri']
+                                 for key in self._collections}
+            self._cached_uris.update(
+                authentication=response['authentication_uri'])
         return self._cached_uris
 
     def _qualified_uri(self, uri):
@@ -149,184 +158,23 @@ class Session(object):
         # Todo: Perhaps also store the response object in the error object?
         raise self._api_errors[response.status_code](code, message)
 
-    def annotation(self, uri):
-        """
-        Get an annotation resource by URI.
-        """
+    def _get_resource(self, key, uri):
         response = self.get(uri)
-        return resources.Annotation(self, response.json()['annotation'])
+        return self._collections[key].resource_class(self,
+                                                     response.json()[key])
 
-    def coverage(self, uri):
-        """
-        Get a coverage resource by URI.
-        """
-        response = self.get(uri)
-        return resources.Coverage(self, response.json()['coverage'])
+    def _get_collection(self, key, *args, **kwargs):
+        return self._collections[key](self, *args, **kwargs)
 
-    def data_source(self, uri):
-        """
-        Get a data source resource by URI.
-        """
-        response = self.get(uri)
-        return resources.DataSource(self, response.json()['data_source'])
+    def _add_resource(self, key, *args, **kwargs):
+        return self._collections[key].resource_class.create(self, *args,
+                                                            **kwargs)
 
-    def sample(self, uri):
-        """
-        Get a sample resource by URI.
-        """
-        response = self.get(uri)
-        return resources.Sample(self, response.json()['sample'])
-
-    def user(self, uri):
-        """
-        Get a user resource by URI.
-        """
-        response = self.get(uri)
-        return resources.User(self, response.json()['user'])
-
-    def variant(self, uri):
-        """
-        Get a variant resource by URI.
-        """
-        response = self.get(uri)
-        return resources.Variant(self, response.json()['variant'])
-
-    def variation(self, uri):
-        """
-        Get a variation resource by URI.
-        """
-        response = self.get(uri)
-        return resources.Variation(self, response.json()['variation'])
-
-    def annotations(self):
-        """
-        Returns a :class:`AnnotationCollection` instance.
-        """
-        return resources.AnnotationCollection(self)
-
-    def coverages(self, sample=None):
-        """
-        Returns a :class:`CoverageCollection` instance.
-        """
-        return resources.CoverageCollection(self, sample=sample)
-
-    def data_sources(self):
-        """
-        Returns a :class:`DataSourceCollection` instance.
-        """
-        return resources.DataSourceCollection(self)
-
-    def samples(self, user=None):
-        """
-        Returns a :class:`SampleCollection` instance.
-        """
-        return resources.SampleCollection(self, user=user)
-
-    def users(self):
-        """
-        Returns a :class:`UserCollection` instance.
-        """
-        return resources.UserCollection(self)
-
-    def variants(self):
-        """
-        Returns a :class:`VariantCollection` instance.
-        """
-        return resources.VariantCollection(self)
-
-    def variations(self, sample=None):
-        """
-        Returns a :class:`VariationCollection` instance.
-
-        :arg sample: Restrict collection to variations of this sample.
-        :type sample: :class:`Sample`
-        """
-        return resources.VariationCollection(self, sample=sample)
-
-    # Todo: Have all `add_*` methods as class methods on the resource.
-    def add_annotation(self, data_source, global_frequency=True,
-                       sample_frequency=None):
-        """
-        Create a new annotation resource.
-        """
-        sample_frequency = sample_frequency or []
-
-        data = {'data_source': data_source,
-                'global_frequency': global_frequency,
-                'sample_frequency': sample_frequency}
-        response = self.post(self.uris['annotations'], data=data)
-        return self.annotation(response.json()['annotation_uri'])
-
-    def add_coverage(self, sample, data_source):
-        """
-        Create a new coverage resource.
-        """
-        data = {'sample': sample,
-                'data_source': data_source}
-        response = self.post(self.uris['coverages'], data=data)
-        return self.coverage(response.json()['coverage_uri'])
-
-    def add_data_source(self, name, filetype, gzipped=False, data=None,
-                        local_file=None):
-        """
-        Create a new sample resource.
-        """
-        post_data = {'name': name,
-                     'filetype': filetype,
-                     'gzipped': gzipped}
-        if local_file:
-            post_data.update(local_file=local_file)
-        if data is None:
-            files = None
-        else:
-            files = {'data': data}
-        response = self.post(self.uris['data_sources'], data=post_data,
-                             files=files)
-        return self.data_source(response.json()['data_source_uri'])
-
-    def add_sample(self, name, pool_size=1, coverage_profile=True,
-                   public=False):
-        """
-        Create a new sample resource.
-        """
-        data = {'name': name,
-                'pool_size': pool_size,
-                'coverage_profile': coverage_profile,
-                'public': public}
-        response = self.post(self.uris['samples'], data=data)
-        return self.sample(response.json()['sample_uri'])
-
-    def add_user(self, login, password, name=None, roles=None):
-        """
-        Create a new user resource.
-        """
-        data = {'login': login,
-                'password': password,
-                'name': name or login,
-                'roles': roles or []}
-        response = self.post(self.uris['users'], data=data)
-        return self.user(response.json()['user_uri'])
-
-    def add_variant(self, chromosome, position, reference='', observed=''):
-        """
-        Create a new variant resource.
-        """
-        data = {'chromosome': chromosome,
-                'position': position,
-                'reference': reference,
-                'observed': observed}
-        response = self.post(self.uris['variants'], data=data)
-        return self.variant(response.json()['variant_uri'])
-
-    def add_variation(self, sample, data_source, skip_filtered=True,
-                      use_genotypes=True, prefer_genotype_likelihoods=False):
-        """
-        Create a new variation resource.
-        """
-        data = {'sample': sample,
-                'data_source': data_source,
-                'skip_filtered': skip_filtered,
-                'use_genotypes': use_genotypes,
-                'prefer_genotype_likelihoods': prefer_genotype_likelihoods}
-        response = self.post(self.uris['variations'], data=data)
-        return self.variation(response.json()['variation_uri'])
+    def __getattr__(self, name):
+        if name in self._collections:
+            return functools.partial(self._get_resource, name)
+        if name.endswith('s') and name[:-1] in self._collections:
+            return functools.partial(self._get_collection, name[:-1])
+        if name.startswith('add_') and name[4:] in self._collections:
+            return functools.partial(self._add_resource, name[4:])
+        raise AttributeError

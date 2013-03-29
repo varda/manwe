@@ -31,8 +31,7 @@ class TestSession():
         with patch.object(requests, 'request') as mock_request:
             mock_request.return_value = mock_response
             s.add_sample('test sample', pool_size=5, public=True)
-            mock_request.assert_any_call('POST',
-                                         'http://samples/',
+            mock_request.assert_any_call('POST', 'http://samples/',
                                          data=json.dumps({'name': 'test sample',
                                                           'pool_size': 5,
                                                           'coverage_profile': True,
@@ -56,8 +55,7 @@ class TestSession():
         with patch.object(requests, 'request') as mock_request:
             mock_request.return_value = mock_response
             s.add_data_source('test data source', 'vcf', data=test_data)
-            mock_request.assert_any_call('POST',
-                                         'http://data_sources/',
+            mock_request.assert_any_call('POST', 'http://data_sources/',
                                          data={'name': 'test data source',
                                                'filetype': 'vcf',
                                                'gzipped': False},

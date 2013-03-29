@@ -114,7 +114,7 @@ class TestSample():
         """
         Read user from a sample.
         """
-        self.session.user.return_value = 'mock user'
+        self.session.attach_mock(Mock(return_value='mock user'), 'user')
 
         fields =  {'name': 'test sample',
                    'pool_size': 5,

@@ -21,6 +21,33 @@ from .errors import NotFoundError, UnsatisfiableRangeError
 COLLECTION_CACHE_SIZE = 20
 
 
+class classproperty(object):
+    """
+    Decorator for defining computed class attributes, dual to the `property`
+    built-in complementary to the `classmethod` built-in.
+
+    Example usage::
+
+        >>> class Foo(object):
+        ...     x= 4
+        ...     @classproperty
+        ...     def number(cls):
+        ...         return cls.x
+        ...
+        >>> Foo().number
+        4
+        >>> Foo.number
+        4
+
+    Copied from `bobince <http://stackoverflow.com/a/3203659>`_.
+    """
+    def __init__(self, getter):
+        self.getter = getter
+
+    def __get__(self, instance, owner):
+        return self.getter(owner)
+
+
 class ResourceJSONEncoder(json.JSONEncoder):
     """
     Specialized :class:`json.JSONEncoder` that can encode resources.
@@ -43,12 +70,15 @@ class _Resource(object):
     """
     Base class for representing server resources.
     """
-    # Index in `Session.uris` for the URI to this resources' collection. This
-    # is the endpoint for listing and creating resources.
-    _uri = None
-
-    # Key in API response objects to the resource.
-    _key = None
+    # Key for this resource type is used in API response objects as index for
+    # the resource definition and with the ``s`` suffix as index in collection
+    # responses. Also, with ``s`` suffix, as index in `Session.uris` for the
+    # URI to this resources' collection which is the endpoint for listing and
+    # creating resources.
+    # We can build all this on a single value in `key` because the server API
+    # is consistent in using conventions for naming things.
+    #: Key for this resource type.
+    key = None
 
     # Note: The `_mutable` tuple must always contain at least ``uri``.
     # Note: Any structured fields (such as lists and dicts) defined in
@@ -95,7 +125,7 @@ class _Resource(object):
 
     def __init__(self, session, fields):
         """
-        Create a representation for a server resource.
+        Create a representation for a server resource from a dictionary.
 
         :arg session: Manwë session.
         :type session: :class:`manwe.Session`
@@ -108,6 +138,18 @@ class _Resource(object):
         self.session = session
         self._dirty = set()
         self._fields = fields
+
+    @classmethod
+    def create(cls, session, data=None, files=None):
+        """
+        Create a new resource on the server and return a representation for
+        it.
+        """
+        kwargs = {'data': data}
+        if files:
+            kwargs.update(files=files)
+        response = session.post(session.uris[cls.key + 's'], **kwargs)
+        return getattr(session, cls.key)(response.json()[cls.key + '_uri'])
 
     # Serialization of values by `urllib.quote_plus` uses `str()` if all else
     # fails. This is used by `urllib.encode`, which in turn is used by
@@ -146,11 +188,11 @@ class _ResourceCollection(object):
     Base class for representing server resource collections, iterators
     returning :class:`_Resource` instances.
     """
+    #: Resource class to use for instantiating resources in this collection.
+    resource_class = None
+
     # Names by which the collection can be parameterized.
     _accepted_args = ()
-
-    # Resource class to use for instantiating resources in this collection.
-    _class = None
 
     def __init__(self, session, **kwargs):
         """
@@ -171,6 +213,13 @@ class _ResourceCollection(object):
         self._resources = collections.deque()
         self._get_resources()
 
+    @classproperty
+    def key(cls):
+        """
+        Key for this resource type.
+        """
+        return cls.resource_class.key
+
     def __iter__(self):
         return self
 
@@ -189,9 +238,9 @@ class _ResourceCollection(object):
         range_ = werkzeug.datastructures.Range(
             'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
         try:
-            response = self.session.get(self.session.uris[self._class._uri],
-                                        headers={'Range': range_.to_header()},
-                                        data=self._args)
+            response = self.session.get(uri=self.session.uris[self.key + 's'],
+                                        data=self._args,
+                                        headers={'Range': range_.to_header()})
         except UnsatisfiableRangeError:
             # Todo: If we'd store the response object in the error object, we
             #     could check for the Content-Range header and if it's present
@@ -199,8 +248,8 @@ class _ResourceCollection(object):
             self.size = 0
             self._next = None
             return
-        self._resources.extend(self._class(self.session, resource) for resource
-                               in response.json()[self._class._key + 's'])
+        self._resources.extend(self.resource_class(self.session, resource)
+                               for resource in response.json()[self.key + 's'])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
         self.size = content_range.length
@@ -228,10 +277,21 @@ class Annotation(_Resource):
     """
     Base class for representing an annotation resource.
     """
-    _uri = 'annotations'
-    _key = 'annotation'
+    key = 'annotation'
     _immutable = ('uri', 'original_data_source_uri',
                   'annotated_data_source_uri', 'written')
+
+    @classmethod
+    def create(cls, session, data_source, global_frequency=True,
+               sample_frequency=None):
+        """
+        Create a new annotation and return a representation for it.
+        """
+        sample_frequency = sample_frequency or []
+        data = {'data_source': data_source,
+                'global_frequency': global_frequency,
+                'sample_frequency': sample_frequency}
+        return super(Annotation, cls).create(session, data=data)
 
     @property
     def original_data_source(self):
@@ -247,16 +307,24 @@ class AnnotationCollection(_ResourceCollection):
     Class for representing an annotation resource collection as an iterator
     returning :class:`Annotation` instances.
     """
-    _class = Annotation
+    resource_class = Annotation
 
 
 class Coverage(_Resource):
     """
     Base class for representing a coverage resource.
     """
-    _uri = 'coverages'
-    _key = 'coverage'
+    key = 'coverage'
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+    @classmethod
+    def create(cls, session, sample, data_source):
+        """
+        Create a new coverage and return a representation for it.
+        """
+        data = {'sample': sample,
+                'data_source': data_source}
+        return super(Coverage, cls).create(session, data=data)
 
     @property
     def sample(self):
@@ -272,19 +340,36 @@ class CoverageCollection(_ResourceCollection):
     Class for representing a coverage resource collection as an iterator
     returning :class:`Coverage` instances.
     """
+    resource_class = Coverage
     _accepted_args = ('sample',)
-    _class = Coverage
 
 
 class DataSource(_Resource):
     """
     Base class for representing a data source resource.
     """
-    _uri = 'data_sources'
-    _key = 'data_source'
+    key = 'data_source'
     _mutable = ('name',)
     _immutable = ('uri', 'user_uri', 'data_uri', 'name', 'filetype',
                   'gzipped', 'added')
+
+    @classmethod
+    def create(cls, session, name, filetype, gzipped=False, data=None,
+               local_file=None):
+        """
+        Create a new data source and return a representation for it.
+        """
+        post_data = {'name': name,
+                     'filetype': filetype,
+                     'gzipped': gzipped}
+        if local_file:
+            post_data.update(local_file=local_file)
+        if data is None:
+            files = None
+        else:
+            files = {'data': data}
+        return super(DataSource, cls).create(session, data=post_data,
+                                             files=files)
 
     @property
     def added(self):
@@ -300,17 +385,28 @@ class DataSourceCollection(_ResourceCollection):
     Class for representing a data source resource collection as an iterator
     returning :class:`DataSource` instances.
     """
-    _class = DataSource
+    resource_class = DataSource
 
 
 class Sample(_Resource):
     """
     Base class for representing a sample resource.
     """
-    _uri = 'samples'
-    _key = 'sample'
+    key = 'sample'
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active')
     _immutable = ('uri', 'user_uri', 'added')
+
+    @classmethod
+    def create(cls, session, name, pool_size=1, coverage_profile=True,
+               public=False):
+        """
+        Create a new sample and return a representation for it.
+        """
+        data = {'name': name,
+                'pool_size': pool_size,
+                'coverage_profile': coverage_profile,
+                'public': public}
+        return super(Sample, cls).create(session, data=data)
 
     @property
     def added(self):
@@ -326,21 +422,31 @@ class SampleCollection(_ResourceCollection):
     Class for representing a sample resource collection as an iterator
     returning :class:`Sample` instances.
     """
+    resource_class = Sample
     _accepted_args = ('user',)
-    _class = Sample
 
 
 class User(_Resource):
     """
     Base class for representing a user resource.
     """
-    _uri = 'users'
-    _key = 'user'
+    key = 'user'
     # Todo: Should password be an ordinary field (with initial None) value
     #     like it is now? Or should we modify it through some change_password
     #     method?
     _mutable = ('password', 'name', 'roles')
     _immutable = ('uri', 'login', 'added')
+
+    @classmethod
+    def create(cls, session, login, password, name=None, roles=None):
+        """
+        Create a new user and return a representation for it.
+        """
+        data = {'login': login,
+                'password': password,
+                'name': name or login,
+                'roles': roles or []}
+        return super(User, cls).create(session, data=data)
 
     @property
     def added(self):
@@ -373,18 +479,28 @@ class UserCollection(_ResourceCollection):
     Class for representing a user resource collection as an iterator returning
     :class:`User` instances.
     """
-    _class = User
+    resource_class = User
 
 
 class Variant(_Resource):
     """
     Base class for representing a variant resource.
     """
-    _uri = 'variants'
-    _key = 'variant'
+    key = 'variant'
     # Todo: The API for this resource has been changed.
     _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
                   'global_frequency', 'sample_frequency')
+
+    @classmethod
+    def create(cls, session, chromosome, position, reference='', observed=''):
+        """
+        Create a new variant and return a representation for it.
+        """
+        data = {'chromosome': chromosome,
+                'position': position,
+                'reference': reference,
+                'observed': observed}
+        return super(Variant, cls).create(session, data=data)
 
 
 class VariantCollection(_ResourceCollection):
@@ -392,16 +508,28 @@ class VariantCollection(_ResourceCollection):
     Class for representing a variant resource collection as an iterator
     returning :class:`Variant` instances.
     """
-    _class = Variant
+    resource_class = Variant
 
 
 class Variation(_Resource):
     """
     Base class for representing a variation resource.
     """
-    _uri = 'variations'
-    _key = 'variation'
+    key = 'variation'
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+
+    @classmethod
+    def create(cls, session, sample, data_source, skip_filtered=True,
+               use_genotypes=True, prefer_genotype_likelihoods=False):
+        """
+        Create a new variation and return a representation for it.
+        """
+        data = {'sample': sample,
+                'data_source': data_source,
+                'skip_filtered': skip_filtered,
+                'use_genotypes': use_genotypes,
+                'prefer_genotype_likelihoods': prefer_genotype_likelihoods}
+        return super(Variation, cls).create(session, data=data)
 
     @property
     def sample(self):
@@ -417,5 +545,5 @@ class VariationCollection(_ResourceCollection):
     Class for representing a variation resource collection as an iterator
     returning :class:`Variation` instances.
     """
+    resource_class = Variation
     _accepted_args = ('sample',)
-    _class = Variation

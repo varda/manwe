@@ -26,7 +26,7 @@ def log(message):
 
 def abort(message=None):
     if message:
-        log(message)
+        log('error: ' + message)
     sys.exit(1)
 
 
@@ -228,6 +228,8 @@ def main():
     except ForbiddenError:
         abort('Sorry, you do not have permission')
     except BadRequestError as (code, message):
+        abort(message)
+    except ApiError as (code, message):
         abort(message)
 
 
