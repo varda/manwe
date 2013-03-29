@@ -4,8 +4,9 @@ Unit tests for :mod:`manwe.resources`.
 
 
 import datetime
+import json
 
-from mock import Mock
+from mock import Mock, patch
 from nose.tools import *
 import requests
 
@@ -107,6 +108,7 @@ class TestSample():
         assert_equal(sample.pool_size, 5)
         assert_equal(sample.public, False)
         assert_equal(sample.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+        assert_equal(str(sample), sample.uri)
 
     def test_read_sample_user(self):
         """
@@ -217,6 +219,36 @@ class TestSample():
         assert_equal(len(sample_list), total)
         assert_equal(sample_list[0].name, 'test sample 1')
         assert_equal(sample_list[-1].name, 'test sample %i' % total)
+
+
+    def test_sample_collection_user(self):
+        """
+        Request a sample collection for a user.
+        """
+        mock_response = Mock(requests.Response, status_code=200)
+        mock_response.json.return_value = {'samples': []}
+        mock_response.headers = {'Content-Range': 'items 0-0/1'}
+
+        s = session.Session(config='/dev/null')
+        s._cached_uris = {'samples': 'http://samples/'}
+
+        fields = dict(uri='/users/8',
+                      name='test',
+                      login='test',
+                      roles=['importer'],
+                      added='2012-11-23T10:55:12')
+        user = resources.User(s, fields)
+
+        with patch.object(requests, 'request') as mock_request:
+            mock_request.return_value = mock_response
+            samples = resources.SampleCollection(s, user=user)
+            mock_request.assert_called_once_with(
+                'GET', 'http://samples/',
+                data=json.dumps({'user': '/users/8'}),
+                headers={'content-type': 'application/json',
+                         'Range': 'items=0-19'},
+                auth=(None, None))
+            assert_equal(samples.user, user)
 
 
 class TestUser():

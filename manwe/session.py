@@ -118,7 +118,8 @@ class Session(object):
         headers = kwargs.pop('headers', {})
         uri = self._qualified_uri(uri)
         if 'data' in kwargs and not 'files' in kwargs:
-            kwargs['data'] = json.dumps(kwargs['data'])
+            kwargs['data'] = json.dumps(kwargs['data'],
+                                        cls=resources.ResourceJSONEncoder)
             headers['content-type'] = 'application/json'
         kwargs['auth'] = self.config.user, self.config.password
         if headers:
@@ -232,12 +233,16 @@ class Session(object):
         """
         return resources.VariantCollection(self)
 
-    def variations(self):
+    def variations(self, sample=None):
         """
         Returns a :class:`VariationCollection` instance.
-        """
-        return resources.VariationCollection(self)
 
+        :arg sample: Restrict collection to variations of this sample.
+        :type sample: :class:`Sample`
+        """
+        return resources.VariationCollection(self, sample=sample)
+
+    # Todo: Have all `add_*` methods as class methods on the resource.
     def add_annotation(self, data_source, global_frequency=True,
                        sample_frequency=None):
         """
@@ -245,9 +250,9 @@ class Session(object):
         """
         sample_frequency = sample_frequency or []
 
-        data = {'data_source': data_source.uri,
+        data = {'data_source': data_source,
                 'global_frequency': global_frequency,
-                'sample_frequency': [sample.uri for sample in sample_frequency]}
+                'sample_frequency': sample_frequency}
         response = self.post(self.uris['annotations'], data=data)
         return self.annotation(response.json()['annotation_uri'])
 
@@ -255,8 +260,8 @@ class Session(object):
         """
         Create a new coverage resource.
         """
-        data = {'sample': sample.uri,
-                'data_source': data_source.uri}
+        data = {'sample': sample,
+                'data_source': data_source}
         response = self.post(self.uris['coverages'], data=data)
         return self.coverage(response.json()['coverage_uri'])
 
@@ -317,8 +322,8 @@ class Session(object):
         """
         Create a new variation resource.
         """
-        data = {'sample': sample.uri,
-                'data_source': data_source.uri,
+        data = {'sample': sample,
+                'data_source': data_source,
                 'skip_filtered': skip_filtered,
                 'use_genotypes': use_genotypes,
                 'prefer_genotype_likelihoods': prefer_genotype_likelihoods}

@@ -58,10 +58,8 @@ class TestSession():
             s.add_data_source('test data source', 'vcf', data=test_data)
             mock_request.assert_any_call('POST',
                                          'http://data_sources/',
-                                         data=json.dumps({'name': 'test data source',
-                                                          'filetype': 'vcf',
-                                                          'gzipped': False,
-                                                          'local_file': None}),
+                                         data={'name': 'test data source',
+                                               'filetype': 'vcf',
+                                               'gzipped': False},
                                          files={'data': test_data},
-                                         headers={'content-type': 'application/json'},
                                          auth=(None, None))

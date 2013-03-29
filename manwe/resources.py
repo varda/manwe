@@ -9,6 +9,7 @@ Manwë resources.
 
 
 import collections
+import json
 
 import dateutil.parser
 import werkzeug.http
@@ -19,10 +20,29 @@ from .errors import NotFoundError
 COLLECTION_CACHE_SIZE = 20
 
 
+class ResourceJSONEncoder(json.JSONEncoder):
+    """
+    Specialized :class:`json.JSONEncoder` that can encode resources.
+
+    Use like this::
+
+        >>> import json
+        >>> user = session.add_user('test', '***')
+        >>> json.dumps(user, cls=ResourceJSONEncoder)
+        '/users/3'
+
+    """
+    def default(self, o):
+        if isinstance(o, _Resource):
+            return str(o)
+        return super(ResourceJSONEncoder, self).default(o)
+
+
 class _Resource(object):
     """
     Base class for representing server resources.
     """
+    # Note: The `_mutable` tuple must always contain at least ``uri``.
     # Note: Any structured fields (such as lists and dicts) defined in
     #     `_mutable`, won't just work with the getters and setters defined
     #     for them automatically below. This is because they can be modified
@@ -81,6 +101,19 @@ class _Resource(object):
         self._dirty = set()
         self._fields = fields
 
+    # Serialization of values by `urllib.quote_plus` uses `str()` if all else
+    # fails. This is used by `urllib.encode`, which in turn is used by
+    # `requests.request` to serialize the `data` argument.
+    # Implementing `__str__` here effectively means implementing what gets
+    # send to the server if we pass a resource with the request.
+    # Note that this doesn't work for `json.dumps`, where we really have to
+    # implement a `json.JSONEncoder.default` method to serialize resources.
+    # For this, a specialized encoder class is provided above as
+    # `ResourceJSONEncoder`.
+    # Todo: Have a more informative `__repr__` implementation.
+    def __str__(self):
+        return self._fields['uri']
+
     @property
     def dirty(self):
         """
@@ -111,10 +144,13 @@ class _ResourceCollection(object):
     # Key in API collection response objects to the list of resources.
     _collection_key = None
 
+    # Names by which the collection can be parameterized.
+    _collection_args = ()
+
     # Resource class to use for instantiating resources in this collection.
     _resource_class = None
 
-    def __init__(self, session):
+    def __init__(self, session, **kwargs):
         """
         Create a representation for a server resource collection.
         """
@@ -128,12 +164,21 @@ class _ResourceCollection(object):
         #: why there is not `__len__` property defined.
         self.size = 0
 
+        self._args = {arg: kwargs.get(arg) for arg in self._collection_args}
         self._next = 0
         self._resources = collections.deque()
         self._get_resources()
 
     def __iter__(self):
         return self
+
+    def __getattr__(self, name):
+        # This enables us to do `variations.sample` if `variations` is a
+        # collection created with a `sample` argument.
+        try:
+            return self._args[name]
+        except KeyError:
+            raise AttributeError
 
     def _get_resources(self):
         if self._next is None:
@@ -142,11 +187,12 @@ class _ResourceCollection(object):
         range = 'items=%d-%d' % (self._next,
                                  self._next + COLLECTION_CACHE_SIZE - 1)
         response = self.session.get(self.session.uris[self._collection_uri],
-                                    headers={'Range': range})
+                                    headers={'Range': range}, data=self._args)
         self._resources.extend(self._resource_class(self.session, resource)
                                for resource in response.json()[self._collection_key])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
+        # Todo: For empty collections, `content_range` is `None`.
         self.size = content_range.length
         if content_range.stop < content_range.length:
             self._next += COLLECTION_CACHE_SIZE
@@ -329,6 +375,7 @@ class SampleCollection(_ResourceCollection):
     """
     _collection_uri = 'samples'
     _collection_key = 'samples'
+    _collection_args = ('user',)
     _resource_class = Sample
 
 
