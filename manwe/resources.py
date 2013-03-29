@@ -43,6 +43,13 @@ class _Resource(object):
     """
     Base class for representing server resources.
     """
+    # Index in `Session.uris` for the URI to this resources' collection. This
+    # is the endpoint for listing and creating resources.
+    _uri = None
+
+    # Key in API response objects to the resource.
+    _key = None
+
     # Note: The `_mutable` tuple must always contain at least ``uri``.
     # Note: Any structured fields (such as lists and dicts) defined in
     #     `_mutable`, won't just work with the getters and setters defined
@@ -139,17 +146,11 @@ class _ResourceCollection(object):
     Base class for representing server resource collections, iterators
     returning :class:`_Resource` instances.
     """
-    # Index in `Session.uris` for the URI to this collection.
-    _collection_uri = None
-
-    # Key in API collection response objects to the list of resources.
-    _collection_key = None
-
     # Names by which the collection can be parameterized.
-    _collection_args = ()
+    _accepted_args = ()
 
     # Resource class to use for instantiating resources in this collection.
-    _resource_class = None
+    _class = None
 
     def __init__(self, session, **kwargs):
         """
@@ -165,7 +166,7 @@ class _ResourceCollection(object):
         #: why there is not `__len__` property defined.
         self.size = 0
 
-        self._args = {arg: kwargs.get(arg) for arg in self._collection_args}
+        self._args = {arg: kwargs.get(arg) for arg in self._accepted_args}
         self._next = 0
         self._resources = collections.deque()
         self._get_resources()
@@ -188,7 +189,7 @@ class _ResourceCollection(object):
         range_ = werkzeug.datastructures.Range(
             'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
         try:
-            response = self.session.get(self.session.uris[self._collection_uri],
+            response = self.session.get(self.session.uris[self._class._uri],
                                         headers={'Range': range_.to_header()},
                                         data=self._args)
         except UnsatisfiableRangeError:
@@ -198,8 +199,8 @@ class _ResourceCollection(object):
             self.size = 0
             self._next = None
             return
-        self._resources.extend(self._resource_class(self.session, resource)
-                               for resource in response.json()[self._collection_key])
+        self._resources.extend(self._class(self.session, resource) for resource
+                               in response.json()[self._class._key + 's'])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
         self.size = content_range.length
@@ -227,6 +228,8 @@ class Annotation(_Resource):
     """
     Base class for representing an annotation resource.
     """
+    _uri = 'annotations'
+    _key = 'annotation'
     _immutable = ('uri', 'original_data_source_uri',
                   'annotated_data_source_uri', 'written')
 
@@ -239,10 +242,20 @@ class Annotation(_Resource):
         return self.session.data_source(self.annotated_data_source_uri)
 
 
+class AnnotationCollection(_ResourceCollection):
+    """
+    Class for representing an annotation resource collection as an iterator
+    returning :class:`Annotation` instances.
+    """
+    _class = Annotation
+
+
 class Coverage(_Resource):
     """
     Base class for representing a coverage resource.
     """
+    _uri = 'coverages'
+    _key = 'coverage'
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
 
     @property
@@ -254,10 +267,21 @@ class Coverage(_Resource):
         return self.session.data_source(self.data_source_uri)
 
 
+class CoverageCollection(_ResourceCollection):
+    """
+    Class for representing a coverage resource collection as an iterator
+    returning :class:`Coverage` instances.
+    """
+    _accepted_args = ('sample',)
+    _class = Coverage
+
+
 class DataSource(_Resource):
     """
     Base class for representing a data source resource.
     """
+    _uri = 'data_sources'
+    _key = 'data_source'
     _mutable = ('name',)
     _immutable = ('uri', 'user_uri', 'data_uri', 'name', 'filetype',
                   'gzipped', 'added')
@@ -271,10 +295,20 @@ class DataSource(_Resource):
         return self.session.user(self.user_uri)
 
 
+class DataSourceCollection(_ResourceCollection):
+    """
+    Class for representing a data source resource collection as an iterator
+    returning :class:`DataSource` instances.
+    """
+    _class = DataSource
+
+
 class Sample(_Resource):
     """
     Base class for representing a sample resource.
     """
+    _uri = 'samples'
+    _key = 'sample'
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active')
     _immutable = ('uri', 'user_uri', 'added')
 
@@ -287,10 +321,21 @@ class Sample(_Resource):
         return self.session.user(self.user_uri)
 
 
+class SampleCollection(_ResourceCollection):
+    """
+    Class for representing a sample resource collection as an iterator
+    returning :class:`Sample` instances.
+    """
+    _accepted_args = ('user',)
+    _class = Sample
+
+
 class User(_Resource):
     """
     Base class for representing a user resource.
     """
+    _uri = 'users'
+    _key = 'user'
     # Todo: Should password be an ordinary field (with initial None) value
     #     like it is now? Or should we modify it through some change_password
     #     method?
@@ -323,19 +368,39 @@ class User(_Resource):
         self._fields['roles'] = list(roles)
 
 
+class UserCollection(_ResourceCollection):
+    """
+    Class for representing a user resource collection as an iterator returning
+    :class:`User` instances.
+    """
+    _class = User
+
+
 class Variant(_Resource):
     """
     Base class for representing a variant resource.
     """
+    _uri = 'variants'
+    _key = 'variant'
     # Todo: The API for this resource has been changed.
     _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
                   'global_frequency', 'sample_frequency')
+
+
+class VariantCollection(_ResourceCollection):
+    """
+    Class for representing a variant resource collection as an iterator
+    returning :class:`Variant` instances.
+    """
+    _class = Variant
 
 
 class Variation(_Resource):
     """
     Base class for representing a variation resource.
     """
+    _uri = 'variations'
+    _key = 'variation'
     _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
 
     @property
@@ -347,74 +412,10 @@ class Variation(_Resource):
         return self.session.data_source(self.data_source_uri)
 
 
-class AnnotationCollection(_ResourceCollection):
-    """
-    Class for representing an annotation resource collection as an iterator
-    returning :class:`Annotation` instances.
-    """
-    _collection_uri = 'annotations'
-    _collection_key = 'annotations'
-    _resource_class = Annotation
-
-
-class CoverageCollection(_ResourceCollection):
-    """
-    Class for representing a coverage resource collection as an iterator
-    returning :class:`Coverage` instances.
-    """
-    _collection_uri = 'coverages'
-    _collection_key = 'coverages'
-    _collection_args = ('sample',)
-    _resource_class = Coverage
-
-
-class DataSourceCollection(_ResourceCollection):
-    """
-    Class for representing a data source resource collection as an iterator
-    returning :class:`DataSource` instances.
-    """
-    _collection_uri = 'data_sources'
-    _collection_key = 'data_sources'
-    _resource_class = DataSource
-
-
-class SampleCollection(_ResourceCollection):
-    """
-    Class for representing a sample resource collection as an iterator
-    returning :class:`Sample` instances.
-    """
-    _collection_uri = 'samples'
-    _collection_key = 'samples'
-    _collection_args = ('user',)
-    _resource_class = Sample
-
-
-class UserCollection(_ResourceCollection):
-    """
-    Class for representing a user resource collection as an iterator returning
-    :class:`User` instances.
-    """
-    _collection_uri = 'users'
-    _collection_key = 'users'
-    _resource_class = User
-
-
-class VariantCollection(_ResourceCollection):
-    """
-    Class for representing a variant resource collection as an iterator
-    returning :class:`Variant` instances.
-    """
-    _collection_uri = 'variants'
-    _collection_key = 'variants'
-    _resource_class = Variant
-
-
 class VariationCollection(_ResourceCollection):
     """
     Class for representing a variation resource collection as an iterator
     returning :class:`Variation` instances.
     """
-    _collection_uri = 'variations'
-    _collection_key = 'variations'
-    _collection_args = ('sample',)
-    _resource_class = Variation
+    _accepted_args = ('sample',)
+    _class = Variation
