@@ -91,10 +91,23 @@ def show_sample(uri, config=None):
 
     print 'Sample:      %s' % sample.uri
     print 'Name:        %s' % sample.name
-    print 'User name:   %s' % sample.user.name
     print 'Pool size:   %i' % sample.pool_size
     print 'Visibility:  %s' % ('public' if sample.public else 'private')
     print 'State:       %s' % ('active' if sample.active else 'inactive')
+
+    print
+    print 'User:        %s' % sample.user.uri
+    print 'Name:        %s' % sample.user.name
+
+    for variation in session.variations(sample=sample):
+        print
+        print 'Variation:   %s' % variation.uri
+        print 'State:       %s' % ('imported' if variation.imported else 'not imported')
+
+    for coverage in session.coverages(sample=sample):
+        print
+        print 'Coverage:    %s' % coverage.uri
+        print 'State:       %s' % ('imported' if coverage.imported else 'not imported')
 
 
 def add_user(login, password, name=None, config=None, **kwargs):
@@ -173,7 +186,7 @@ def main():
     p.add_argument('--no-coverage-profile', dest='no_coverage_profile',
                    action='store_true', help='sample has no coverage profile')
 
-    p = subparsers.add_parser('show-sample', help='show sample details',
+    p = subparsers.add_parser('sample', help='show sample details',
                               description=show_sample.__doc__.split('\n\n')[0],
                               parents=[config_parser])
     p.set_defaults(func=show_sample)
@@ -197,7 +210,7 @@ def main():
     p.add_argument('--trader', dest='role_trader', action='store_true',
                    help='user has trader role')
 
-    p = subparsers.add_parser('show-user', help='show user details',
+    p = subparsers.add_parser('user', help='show user details',
                               description=show_sample.__doc__.split('\n\n')[0],
                               parents=[config_parser])
     p.set_defaults(func=show_user)

@@ -361,6 +361,7 @@ class CoverageCollection(_ResourceCollection):
     """
     _collection_uri = 'coverages'
     _collection_key = 'coverages'
+    _collection_args = ('sample',)
     _resource_class = Coverage
 
 
@@ -412,4 +413,5 @@ class VariationCollection(_ResourceCollection):
     """
     _collection_uri = 'variations'
     _collection_key = 'variations'
+    _collection_args = ('sample',)
     _resource_class = Variation

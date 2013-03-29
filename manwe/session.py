@@ -203,11 +203,11 @@ class Session(object):
         """
         return resources.AnnotationCollection(self)
 
-    def coverages(self):
+    def coverages(self, sample=None):
         """
         Returns a :class:`CoverageCollection` instance.
         """
-        return resources.CoverageCollection(self)
+        return resources.CoverageCollection(self, sample=sample)
 
     def data_sources(self):
         """
@@ -215,11 +215,11 @@ class Session(object):
         """
         return resources.DataSourceCollection(self)
 
-    def samples(self):
+    def samples(self, user=None):
         """
         Returns a :class:`SampleCollection` instance.
         """
-        return resources.SampleCollection(self)
+        return resources.SampleCollection(self, user=user)
 
     def users(self):
         """
