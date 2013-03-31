@@ -156,6 +156,8 @@ class Session(object):
             message = response.text[:78]
         logger.debug('API error code', code, message)
         # Todo: Perhaps also store the response object in the error object?
+        # Todo: Sometimes we can be more specific in the exception type
+        #     instead of a 1:1 mapping from status codes.
         raise self._api_errors[response.status_code](code, message)
 
     def _get_resource(self, key, uri):
