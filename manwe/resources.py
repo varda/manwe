@@ -20,6 +20,9 @@ from .errors import NotFoundError, UnsatisfiableRangeError
 
 COLLECTION_CACHE_SIZE = 20
 
+# This is in bytes. Should it be much higher?
+DATA_BUFFER_SIZE = 1024
+
 
 class classproperty(object):
     """
@@ -378,6 +381,14 @@ class DataSource(_Resource):
     @property
     def user(self):
         return self.session.user(self.user_uri)
+
+    @property
+    def data(self):
+        """
+        Iterator over the data source data by chunks.
+        """
+        return self.session.get(self.data_uri, stream=True).iter_content(
+            chunk_size=DATA_BUFFER_SIZE)
 
 
 class DataSourceCollection(_ResourceCollection):

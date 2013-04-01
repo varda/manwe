@@ -147,6 +147,41 @@ def show_user(uri, config=None):
     print 'Roles:  %s' % ', '.join(sorted(user.roles))
 
 
+def show_data_source(uri, config=None):
+    """
+    Show data source details.
+    """
+    session = Session(config=config)
+
+    try:
+        data_source = session.data_source(uri)
+    except NotFoundError:
+        abort('Data source does not exist: "%s"' % uri)
+
+    print 'Data source:  %s' % data_source.uri
+    print 'Name:         %s' % data_source.name
+    print 'Filetype:     %s' % data_source.filetype
+
+    print
+    print 'User:         %s' % data_source.user.uri
+    print 'Name:         %s' % data_source.user.name
+
+
+def data_source_data(uri, config=None):
+    """
+    Get data source data.
+    """
+    session = Session(config=config)
+
+    try:
+        data_source = session.data_source(uri)
+    except NotFoundError:
+        abort('Data source does not exist: "%s"' % uri)
+
+    for chunk in data_source.data:
+        sys.stdout.write(chunk)
+
+
 def main():
     """
     Manwë command line interface.
@@ -215,6 +250,19 @@ def main():
                               parents=[config_parser])
     p.set_defaults(func=show_user)
     p.add_argument('uri', metavar='URI', type=str, help='user URI')
+
+    p = subparsers.add_parser('data-source', help='show data source details',
+                              description=show_data_source.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=show_data_source)
+    p.add_argument('uri', metavar='URI', type=str, help='data source URI')
+
+    p = subparsers.add_parser('download-data-source',
+                              help='download data source and write data to standard output',
+                              description=data_source_data.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=data_source_data)
+    p.add_argument('uri', metavar='URI', type=str, help='data source URI')
 
     args = parser.parse_args()
 
