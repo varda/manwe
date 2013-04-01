@@ -32,7 +32,7 @@ def abort(message=None):
 
 def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
                   vcf_files=None, bed_files=None, data_uploaded=False,
-                  config=None):
+                  prefer_genotype_likelihoods=False, config=None):
     """
     Add sample and import variantion and coverage files.
     """
@@ -68,7 +68,9 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
             gzipped=filename.endswith('.gz'),
             **source)
         log('Added data source: %s' % data_source.uri)
-        variation = session.add_variation(sample, data_source)
+        variation = session.add_variation(
+            sample, data_source,
+            prefer_genotype_likelihoods=prefer_genotype_likelihoods)
         log('Started variation import: %s' % variation.uri)
 
     for source, filename in bed_sources:
@@ -220,6 +222,11 @@ def main():
     #     accidentally forgetting the coverage profile.
     p.add_argument('--no-coverage-profile', dest='no_coverage_profile',
                    action='store_true', help='sample has no coverage profile')
+    p.add_argument('-l', '--prefer_genotype_likelihoods',
+                   dest='prefer_genotype_likelihoods', action='store_true',
+                   help='in VCF files, derive genotypes from likelihood scores '
+                   'instead of using reported genotypes (use this if the file '
+                   'was produced by samtools)')
 
     p = subparsers.add_parser('sample', help='show sample details',
                               description=show_sample.__doc__.split('\n\n')[0],
