@@ -23,6 +23,11 @@ Additionally, any keyword arguments passed to :class:`Config` other than
 """
 
 
+# Todo: Drop configobj dependency, probably use something like ConfigParser
+#     from the standard library. I think configobj is our only dependency
+#     keeping us from running on Python 3.
+
+
 import os
 from configobj import ConfigObj
 
