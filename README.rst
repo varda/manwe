@@ -1,8 +1,9 @@
 Manwë
 =====
 
-A Python client library and command line interface to the Varda database for
-genomic variation frequencies.
+A Python client library and command line interface to the `Varda
+<https://github.com/martijnvermaat/varda>`_ database for genomic variation
+frequencies.
 
 **Warning:** This is a work in progress, probably not yet ready for use!
 
