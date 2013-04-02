@@ -40,10 +40,12 @@ level that is nice to work with from Python code. ::
 Additionally, a simple command line client is built on top of the library that
 can be used to run tasks from the command line, such as creating users and
 importing samples. It is non-interactive and therefore suitable for use from
-existing scripts and pipelines. Communication with Varda is done using the
-`Requests <http://python-requests.org>`_ library. ::
+existing scripts and pipelines. ::
 
     manwe import-sample 'Test' --vcf snps.vcf indels.vcf --bed coverage.bed
+
+Communication with Varda is done using the `Requests
+<http://python-requests.org>`_ library.
 
 
 Running Manwë
