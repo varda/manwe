@@ -84,6 +84,19 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
         log('Started coverage import: %s' % coverage.uri)
 
 
+def activate_sample(uri, config=None):
+    """
+    Activate sample.
+    """
+    session = Session(config=config)
+    sample = session.sample(uri)
+
+    sample.active = True
+    sample.save()
+
+    log('Activated sample: %s' % sample.uri)
+
+
 def show_sample(uri, config=None):
     """
     Show sample details.
@@ -227,6 +240,12 @@ def main():
                    help='in VCF files, derive genotypes from likelihood scores '
                    'instead of using reported genotypes (use this if the file '
                    'was produced by samtools)')
+
+    p = subparsers.add_parser('activate', help='activate sample',
+                              description=activate_sample.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=activate_sample)
+    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
 
     p = subparsers.add_parser('sample', help='show sample details',
                               description=show_sample.__doc__.split('\n\n')[0],
