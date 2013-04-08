@@ -281,7 +281,7 @@ class _ResourceCollection(object):
 
 class Annotation(_Resource):
     """
-    Base class for representing an annotation resource.
+    Class for representing an annotation resource.
     """
     key = 'annotation'
     _immutable = ('uri', 'original_data_source', 'annotated_data_source')
@@ -319,7 +319,7 @@ class AnnotationCollection(_ResourceCollection):
 
 class Coverage(_Resource):
     """
-    Base class for representing a coverage resource.
+    Class for representing a coverage resource.
     """
     key = 'coverage'
     _immutable = ('uri', 'sample', 'data_source')
@@ -353,7 +353,7 @@ class CoverageCollection(_ResourceCollection):
 
 class DataSource(_Resource):
     """
-    Base class for representing a data source resource.
+    Class for representing a data source resource.
     """
     key = 'data_source'
     _mutable = ('name',)
@@ -406,7 +406,7 @@ class DataSourceCollection(_ResourceCollection):
 
 class Sample(_Resource):
     """
-    Base class for representing a sample resource.
+    Class for representing a sample resource.
     """
     key = 'sample'
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active',
@@ -446,7 +446,7 @@ class SampleCollection(_ResourceCollection):
 
 class User(_Resource):
     """
-    Base class for representing a user resource.
+    Class for representing a user resource.
     """
     key = 'user'
     # Todo: Should password be an ordinary field (with initial None) value
@@ -504,7 +504,7 @@ class UserCollection(_ResourceCollection):
 
 class Variant(_Resource):
     """
-    Base class for representing a variant resource.
+    Class for representing a variant resource.
     """
     key = 'variant'
     # Todo: The API for this resource has been changed.
@@ -533,7 +533,7 @@ class VariantCollection(_ResourceCollection):
 
 class Variation(_Resource):
     """
-    Base class for representing a variation resource.
+    Class for representing a variation resource.
     """
     key = 'variation'
     _immutable = ('uri', 'sample', 'data_source')

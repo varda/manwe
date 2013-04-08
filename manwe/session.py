@@ -34,7 +34,7 @@ class Session(object):
     Example session::
 
         >>> session = Session()
-        >>> sample = add_sample('Test')
+        >>> sample = session.add_sample('Test')
         >>> sample.uri
         '/samples/1'
         >>> sample.dirty
