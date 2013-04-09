@@ -35,7 +35,8 @@ class TestSession():
                                          data=json.dumps({'name': 'test sample',
                                                           'pool_size': 5,
                                                           'coverage_profile': True,
-                                                          'public': True}),
+                                                          'public': True,
+                                                          'notes': None}),
                                          headers={'content-type': 'application/json'},
                                          auth=(None, None))
 

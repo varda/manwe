@@ -102,11 +102,13 @@ class TestSample():
                    'uri': '/samples/3',
                    'user_uri': '/users/8',
                    'active': True,
+                   'notes': 'Some test notes',
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
         assert_equal(sample.name, 'test sample')
         assert_equal(sample.pool_size, 5)
         assert_equal(sample.public, False)
+        assert_equal(sample.notes, 'Some test notes')
         assert_equal(sample.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
         assert_equal(str(sample), sample.uri)
 
@@ -266,11 +268,13 @@ class TestUser():
         fields = dict(uri='/users/4',
                       name='test',
                       login='test',
+                      email='test@test.com',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
         user = resources.User(self.session, fields)
         assert_equal(user.uri, '/users/4')
+        assert_equal(user.email, 'test@test.com')
         assert_equal(user.roles, {'importer'})
         assert_equal(user.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
 

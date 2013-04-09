@@ -404,19 +404,21 @@ class Sample(_Resource):
     Base class for representing a sample resource.
     """
     key = 'sample'
-    _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active')
+    _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active',
+                'notes')
     _immutable = ('uri', 'user_uri', 'added')
 
     @classmethod
     def create(cls, session, name, pool_size=1, coverage_profile=True,
-               public=False):
+               public=False, notes=None):
         """
         Create a new sample and return a representation for it.
         """
         data = {'name': name,
                 'pool_size': pool_size,
                 'coverage_profile': coverage_profile,
-                'public': public}
+                'public': public,
+                'notes': notes}
         return super(Sample, cls).create(session, data=data)
 
     @property
@@ -445,17 +447,19 @@ class User(_Resource):
     # Todo: Should password be an ordinary field (with initial None) value
     #     like it is now? Or should we modify it through some change_password
     #     method?
-    _mutable = ('password', 'name', 'roles')
+    _mutable = ('password', 'name', 'email', 'roles')
     _immutable = ('uri', 'login', 'added')
 
     @classmethod
-    def create(cls, session, login, password, name=None, roles=None):
+    def create(cls, session, login, password, name=None, email=None,
+               roles=None):
         """
         Create a new user and return a representation for it.
         """
         data = {'login': login,
                 'password': password,
                 'name': name or login,
+                'email': email,
                 'roles': roles or []}
         return super(User, cls).create(session, data=data)
 
