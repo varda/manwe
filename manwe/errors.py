@@ -22,6 +22,10 @@ class ForbiddenError(ApiError):
     pass
 
 
+class NotAcceptableError(ApiError):
+    pass
+
+
 class NotFoundError(ApiError):
     pass
 

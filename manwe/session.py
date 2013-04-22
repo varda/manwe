@@ -15,9 +15,13 @@ import logging
 import requests
 
 from .config import Config
-from .errors import (ApiError, BadRequestError, ForbiddenError, NotFoundError,
-                     UnauthorizedError, UnsatisfiableRangeError)
+from .errors import (ApiError, BadRequestError, ForbiddenError,
+                     NotAcceptableError, NotFoundError, UnauthorizedError,
+                     UnsatisfiableRangeError)
 from . import resources
+
+
+ACCEPT_VERSION = '>=0.2.0,<0.3.0'
 
 
 logger = logging.getLogger('manwe')
@@ -72,6 +76,7 @@ class Session(object):
                                401: UnauthorizedError,
                                403: ForbiddenError,
                                404: NotFoundError,
+                               406: NotAcceptableError,
                                416: UnsatisfiableRangeError})
 
     def set_log_level(self, log_level):
@@ -134,12 +139,11 @@ class Session(object):
         if 'data' in kwargs and not 'files' in kwargs:
             kwargs['data'] = json.dumps(kwargs['data'],
                                         cls=resources.ResourceJSONEncoder)
-            headers['content-type'] = 'application/json'
+            headers['Content-Type'] = 'application/json'
+        headers['Accept-Version'] = ACCEPT_VERSION
         kwargs['auth'] = self.config.user, self.config.password
-        if headers:
-            kwargs['headers'] = headers
         try:
-            response = requests.request(method, uri, **kwargs)
+            response = requests.request(method, uri, headers=headers, **kwargs)
         except requests.RequestException as e:
             logger.warn('Unable to make API request', method, uri)
             raise
@@ -155,7 +159,7 @@ class Session(object):
             content = response.json()
             code = content['error']['code']
             message = content['error']['message']
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             code = response.reason
             message = response.text[:78]
         logger.debug('API error code', code, message)
