@@ -26,13 +26,11 @@ class TestAnnotation():
         Read field values from an annotation with correct types.
         """
         fields = dict(uri='/annotations/3',
-                      original_data_source_uri='/data_sources/4',
-                      annotated_data_source_uri='/data_sources/6',
-                      written=True)
+                      original_data_source={'uri': '/data_sources/4'},
+                      annotated_data_source={'uri': '/data_sources/6'})
 
         annotation = resources.Annotation(self.session, fields)
         assert_equal(annotation.uri, '/annotations/3')
-        assert_equal(annotation.written, True)
 
 
 class TestCoverage():
@@ -48,13 +46,11 @@ class TestCoverage():
         Read field values from a coverage with correct types.
         """
         fields = dict(uri='/coverages/8',
-                      sample_uri='/samples/3',
-                      data_source_uri='/data_sources/1',
-                      imported=True)
+                      sample={'uri': '/samples/3'},
+                      data_source={'uri': '/data_sources/1'})
 
         coverage = resources.Coverage(self.session, fields)
         assert_equal(coverage.uri, '/coverages/8')
-        assert_equal(coverage.imported, True)
 
 
 class TestDataSource():
@@ -71,8 +67,8 @@ class TestDataSource():
         """
         fields = dict(uri='/data_sources/4',
                       name='test',
-                      user_uri='/users/2',
-                      data_uri='/data_sources/4/data',
+                      user={'uri': '/users/2'},
+                      data={'uri': '/data_sources/4/data'},
                       filetype='test',
                       gzipped=True,
                       added='2012-11-23T10:55:12')
@@ -89,7 +85,7 @@ class TestSample():
     classes.
     """
     def setup(self):
-        self.session = Mock(session.Session, uris={'samples': '/samples'})
+        self.session = Mock(session.Session, uris={'sample_collection': '/samples'})
 
     def test_read_sample(self):
         """
@@ -100,7 +96,7 @@ class TestSample():
                    'coverage_profile': True,
                    'public': False,
                    'uri': '/samples/3',
-                   'user_uri': '/users/8',
+                   'user': {'uri': '/users/8'},
                    'active': True,
                    'notes': 'Some test notes',
                    'added': '2012-11-23T10:55:12'}
@@ -123,7 +119,7 @@ class TestSample():
                    'coverage_profile': True,
                    'public': False,
                    'uri': '/samples/3',
-                   'user_uri': '/users/8',
+                   'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
@@ -140,7 +136,7 @@ class TestSample():
                    'coverage_profile': True,
                    'public': False,
                    'uri': '/samples/3',
-                   'user_uri': '/users/8',
+                   'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
@@ -158,7 +154,7 @@ class TestSample():
                    'coverage_profile': True,
                    'public': False,
                    'uri': '/samples/3',
-                   'user_uri': '/users/8',
+                   'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
@@ -173,7 +169,7 @@ class TestSample():
                    'coverage_profile': True,
                    'public': False,
                    'uri': '/samples/3',
-                   'user_uri': '/users/8',
+                   'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
         sample = resources.Sample(self.session, fields)
@@ -196,13 +192,13 @@ class TestSample():
                     'coverage_profile': True,
                     'public': False,
                     'uri': '/samples/%i' % i,
-                    'user_uri': '/users/8',
+                    'user': {'uri': '/users/8'},
                     'active': True,
                     'added': '2012-11-23T10:55:12'}
         def create_mock_response(start, end, total):
             samples = [create_sample(i) for i in range(start, end)]
             mock_response = Mock(requests.Response)
-            mock_response.json.return_value = {'samples': samples}
+            mock_response.json.return_value = {'collection': {'items': samples}}
             mock_response.headers = {'Content-Range': 'items %d-%d/%d' % (start, end, total)}
             return mock_response
 
@@ -228,11 +224,11 @@ class TestSample():
         Request a sample collection for a user.
         """
         mock_response = Mock(requests.Response, status_code=200)
-        mock_response.json.return_value = {'samples': []}
+        mock_response.json.return_value = {'collection': {'items': []}}
         mock_response.headers = {'Content-Range': 'items 0-0/1'}
 
         s = session.Session(config='/dev/null')
-        s._cached_uris = {'samples': 'http://samples/'}
+        s._cached_uris = {'sample_collection': 'http://samples/'}
 
         fields = dict(uri='/users/8',
                       name='test',
@@ -247,8 +243,9 @@ class TestSample():
             mock_request.assert_called_once_with(
                 'GET', 'http://samples/',
                 data=json.dumps({'user': '/users/8'}),
-                headers={'content-type': 'application/json',
-                         'Range': 'items=0-19'},
+                headers={'Content-Type': 'application/json',
+                         'Range': 'items=0-19',
+                         'Accept-Version': session.ACCEPT_VERSION},
                 auth=(None, None))
             assert_equal(samples.user, user)
 
@@ -396,10 +393,8 @@ class TestVariation():
         Read field values from a variation with correct types.
         """
         fields = dict(uri='/variations/23',
-                      sample_uri='/samples/3',
-                      data_source_uri='/data_sources/6',
-                      imported=True)
+                      sample={'uri': '/samples/3'},
+                      data_source={'uri': '/data_sources/6'})
 
         variation = resources.Variation(self.session, fields)
         assert_equal(variation.uri, '/variations/23')
-        assert_equal(variation.imported, True)

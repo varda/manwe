@@ -46,6 +46,7 @@ class Session(object):
         >>> sample.dirty
         False
     """
+    # Todo: Use the sessions from the requests library.
     _collections = {c.key: c for c in (resources.AnnotationCollection,
                                        resources.CoverageCollection,
                                        resources.DataSourceCollection,
@@ -91,11 +92,11 @@ class Session(object):
         Dictionary mapping API endpoints to their URIs.
         """
         if not self._cached_uris:
+            keys = {key + '_collection' for key in self._collections}
+            keys.add('authentication')
+            keys.add('genome')
             response = self.get(self.config.api_root).json()
-            self._cached_uris = {key + 's': response[key + 's_uri']
-                                 for key in self._collections}
-            self._cached_uris.update(
-                authentication=response['authentication_uri'])
+            self._cached_uris = {key: response[key]['uri'] for key in keys}
         return self._cached_uris
 
     def _qualified_uri(self, uri):

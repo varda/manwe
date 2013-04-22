@@ -22,11 +22,12 @@ class TestSession():
         Adding a sample causes the correct POST request to be sent to the
         server.
         """
-        mock_response = Mock(requests.Response, status_code=200)
+        mock_response = Mock(requests.Response, status_code=200,
+                             headers={'Location': '/'})
         mock_response.json.return_value = collections.defaultdict(str)
 
         s = session.Session(config='/dev/null')
-        s._cached_uris = {'samples': 'http://samples/'}
+        s._cached_uris = {'sample_collection': 'http://samples/'}
 
         with patch.object(requests, 'request') as mock_request:
             mock_request.return_value = mock_response
@@ -37,7 +38,8 @@ class TestSession():
                                                           'coverage_profile': True,
                                                           'public': True,
                                                           'notes': None}),
-                                         headers={'content-type': 'application/json'},
+                                         headers={'Content-Type': 'application/json',
+                                                  'Accept-Version': session.ACCEPT_VERSION},
                                          auth=(None, None))
 
     def test_add_data_source(self):
@@ -45,11 +47,12 @@ class TestSession():
         Adding a data source causes the correct POST request to be sent to the
         server.
         """
-        mock_response = Mock(requests.Response, status_code=200)
+        mock_response = Mock(requests.Response, status_code=200,
+                             headers={'Location': '/'})
         mock_response.json.return_value = collections.defaultdict(str)
 
         s = session.Session(config='/dev/null')
-        s._cached_uris = {'data_sources': 'http://data_sources/'}
+        s._cached_uris = {'data_source_collection': 'http://data_sources/'}
 
         test_data = 'test data'
 
@@ -61,4 +64,5 @@ class TestSession():
                                                'filetype': 'vcf',
                                                'gzipped': False},
                                          files={'data': test_data},
+                                         headers={'Accept-Version': session.ACCEPT_VERSION},
                                          auth=(None, None))

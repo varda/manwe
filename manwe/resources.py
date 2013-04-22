@@ -73,11 +73,12 @@ class _Resource(object):
     """
     Base class for representing server resources.
     """
+    # Todo: Use embedded resources to avoid many separate requests.
+
     # Key for this resource type is used in API response objects as index for
-    # the resource definition and with the ``s`` suffix as index in collection
-    # responses. Also, with ``s`` suffix, as index in `Session.uris` for the
-    # URI to this resources' collection which is the endpoint for listing and
-    # creating resources.
+    # the resource definition and with the ``_collection`` suffix as index in
+    # `Session.uris` for the URI to this resources' collection which is the
+    # endpoint for listing and creating resources.
     # We can build all this on a single value in `key` because the server API
     # is consistent in using conventions for naming things.
     #: Key for this resource type.
@@ -151,8 +152,9 @@ class _Resource(object):
         kwargs = {'data': data}
         if files:
             kwargs.update(files=files)
-        response = session.post(session.uris[cls.key + 's'], **kwargs)
-        return getattr(session, cls.key)(response.json()[cls.key + '_uri'])
+        response = session.post(session.uris[cls.key + '_collection'],
+                                **kwargs)
+        return getattr(session, cls.key)(response.headers['Location'])
 
     # Serialization of values by `urllib.quote_plus` uses `str()` if all else
     # fails. This is used by `urllib.encode`, which in turn is used by
@@ -237,13 +239,13 @@ class _ResourceCollection(object):
     def _get_resources(self):
         if self._next is None:
             return
-        # Todo: Use Range object from Werkzeug to construct this header.
         range_ = werkzeug.datastructures.Range(
             'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
         try:
-            response = self.session.get(uri=self.session.uris[self.key + 's'],
-                                        data=self._args,
-                                        headers={'Range': range_.to_header()})
+            response = self.session.get(
+                uri=self.session.uris[self.key + '_collection'],
+                data=self._args,
+                headers={'Range': range_.to_header()})
         except UnsatisfiableRangeError:
             # Todo: If we'd store the response object in the error object, we
             #     could check for the Content-Range header and if it's present
@@ -251,8 +253,9 @@ class _ResourceCollection(object):
             self.size = 0
             self._next = None
             return
-        self._resources.extend(self.resource_class(self.session, resource)
-                               for resource in response.json()[self.key + 's'])
+        self._resources.extend(
+            self.resource_class(self.session, resource)
+            for resource in response.json()['collection']['items'])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
         self.size = content_range.length
@@ -281,8 +284,7 @@ class Annotation(_Resource):
     Base class for representing an annotation resource.
     """
     key = 'annotation'
-    _immutable = ('uri', 'original_data_source_uri',
-                  'annotated_data_source_uri', 'written')
+    _immutable = ('uri', 'original_data_source', 'annotated_data_source')
 
     @classmethod
     def create(cls, session, data_source, global_frequency=True,
@@ -298,11 +300,13 @@ class Annotation(_Resource):
 
     @property
     def original_data_source(self):
-        return self.session.data_source(self.original_data_source_uri)
+        return self.session.data_source(
+            self._fields['original_data_source']['uri'])
 
     @property
     def annotated_data_source(self):
-        return self.session.data_source(self.annotated_data_source_uri)
+        return self.session.data_source(
+            self._fields['annotated_data_source']['uri'])
 
 
 class AnnotationCollection(_ResourceCollection):
@@ -318,7 +322,7 @@ class Coverage(_Resource):
     Base class for representing a coverage resource.
     """
     key = 'coverage'
-    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+    _immutable = ('uri', 'sample', 'data_source')
 
     @classmethod
     def create(cls, session, sample, data_source):
@@ -331,11 +335,11 @@ class Coverage(_Resource):
 
     @property
     def sample(self):
-        return self.session.sample(self.sample_uri)
+        return self.session.sample(self._fields['sample']['uri'])
 
     @property
     def data_source(self):
-        return self.session.data_source(self.data_source_uri)
+        return self.session.data_source(self._fields['data_source']['uri'])
 
 
 class CoverageCollection(_ResourceCollection):
@@ -353,8 +357,8 @@ class DataSource(_Resource):
     """
     key = 'data_source'
     _mutable = ('name',)
-    _immutable = ('uri', 'user_uri', 'data_uri', 'name', 'filetype',
-                  'gzipped', 'added')
+    _immutable = ('uri', 'user', 'data', 'name', 'filetype', 'gzipped',
+                  'added')
 
     @classmethod
     def create(cls, session, name, filetype, gzipped=False, data=None,
@@ -380,14 +384,15 @@ class DataSource(_Resource):
 
     @property
     def user(self):
-        return self.session.user(self.user_uri)
+        return self.session.user(self._fields['user']['uri'])
 
     @property
     def data(self):
         """
         Iterator over the data source data by chunks.
         """
-        return self.session.get(self.data_uri, stream=True).iter_content(
+        return self.session.get(self._fields['data']['uri'],
+                                stream=True).iter_content(
             chunk_size=DATA_BUFFER_SIZE)
 
 
@@ -406,7 +411,7 @@ class Sample(_Resource):
     key = 'sample'
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active',
                 'notes')
-    _immutable = ('uri', 'user_uri', 'added')
+    _immutable = ('uri', 'user', 'added')
 
     @classmethod
     def create(cls, session, name, pool_size=1, coverage_profile=True,
@@ -427,7 +432,7 @@ class Sample(_Resource):
 
     @property
     def user(self):
-        return self.session.user(self.user_uri)
+        return self.session.user(self._fields['user']['uri'])
 
 
 class SampleCollection(_ResourceCollection):
@@ -531,7 +536,7 @@ class Variation(_Resource):
     Base class for representing a variation resource.
     """
     key = 'variation'
-    _immutable = ('uri', 'sample_uri', 'data_source_uri', 'imported')
+    _immutable = ('uri', 'sample', 'data_source')
 
     @classmethod
     def create(cls, session, sample, data_source, skip_filtered=True,
@@ -548,11 +553,11 @@ class Variation(_Resource):
 
     @property
     def sample(self):
-        return self.session.sample(self.sample_uri)
+        return self.session.sample(self._fields['sample']['uri'])
 
     @property
     def data_source(self):
-        return self.session.data_source(self.data_source_uri)
+        return self.session.data_source(self._fields['data_source']['uri'])
 
 
 class VariationCollection(_ResourceCollection):
