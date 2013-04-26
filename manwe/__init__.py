@@ -25,14 +25,14 @@ database for genomic variation frequencies.
 
 RELEASE = False
 
-__version_info__ = ('1', '0', 'dev')
+__version_info__ = ('0', '1', '0', 'dev')
 __date__ = '21 Sep 2012'
 
 
 __version__ = '.'.join(__version_info__)
 __author__ = 'Martijn Vermaat'
 __contact__ = 'martijn@vermaat.name'
-__homepage__ = 'http://martijn.vermaat.name'
+__homepage__ = 'https://github.com/martijnvermaat/manwe'
 
 
 # Set default logging handler to avoid "No handler found" warnings.
