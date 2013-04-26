@@ -5,6 +5,13 @@ API reference
    :members:
 
 
+manwe.commands
+--------------
+
+.. automodule:: manwe.commands
+   :members:
+
+
 manwe.config
 ------------
 
@@ -16,13 +23,6 @@ manwe.errors
 ------------
 
 .. automodule:: manwe.errors
-   :members:
-
-
-manwe.main
-----------
-
-.. automodule:: manwe.main
    :members:
 
 
