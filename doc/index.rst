@@ -1,11 +1,11 @@
 Manwë
 =====
 
+.. warning:: This is a work in progress, probably not yet ready for use!
+
 Manwë is a Python client library for working with the `Varda`_ database for
 genomic variation frequencies. It also provides a command line interface to
 some of its functionality.
-
-.. warning:: This is a work in progress, probably not yet ready for use!
 
 The main goal of Manwë is to offer the complete Varda API, but on an
 abstraction level that is nice to work with from Python code.
@@ -15,8 +15,6 @@ abstraction level that is nice to work with from Python code.
     >>> import manwe
     >>> session = manwe.Session()
     >>> user = add_user('testlogin', 'password')
-    >>> user.uri
-    '/users/1'
     >>> user.dirty
     False
     >>> user.name = 'Test User'
@@ -25,19 +23,12 @@ abstraction level that is nice to work with from Python code.
     >>> user.save()
     >>> user.dirty
     False
-
-::
-
-    >>> for sample in session.samples(user=user):
-    ...     print sample.name
+    >>> for sample in session.samples():
+    ...     print sample.user.name
     ...
-    Sample 1
-    My Second Sample
-    Another Sample
-
-::
-
-    $ manwe import-sample 'Test' --vcf snps.vcf indels.vcf --bed coverage.bed
+    Rob Userman
+    Barry Robsfriend
+    Rob Userman
 
 
 User documentation
