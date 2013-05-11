@@ -5,7 +5,7 @@ Manwë is a Python client library for working with the `Varda`_ database for
 genomic variation frequencies. It also provides a command line interface to
 some of its functionality.
 
-.. warning:: This is a work in progress, probably not yet ready for use!
+**Warning:** This is a work in progress, probably not yet ready for use!
 
 The main goal of Manwë is to offer the complete Varda API, but on an
 abstraction level that is nice to work with from Python code.
