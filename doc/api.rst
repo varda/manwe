@@ -1,21 +1,18 @@
 API reference
 =============
 
+
+manwe
+-----
+
 .. automodule:: manwe
-   :members:
+   :members: Session
 
 
-manwe.commands
---------------
+manwe.resources
+---------------
 
-.. automodule:: manwe.commands
-   :members:
-
-
-manwe.config
-------------
-
-.. automodule:: manwe.config
+.. automodule:: manwe.resources
    :members:
 
 
@@ -26,15 +23,8 @@ manwe.errors
    :members:
 
 
-manwe.resources
----------------
+manwe.config
+------------
 
-.. automodule:: manwe.resources
-   :members:
-
-
-manwe.session
--------------
-
-.. automodule:: manwe.session
+.. automodule:: manwe.config
    :members:

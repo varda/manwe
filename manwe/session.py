@@ -46,7 +46,6 @@ class Session(object):
         >>> sample.dirty
         False
     """
-    # Todo: Use the sessions from the requests library.
     _collections = {c.key: c for c in (resources.AnnotationCollection,
                                        resources.CoverageCollection,
                                        resources.DataSourceCollection,
@@ -64,10 +63,6 @@ class Session(object):
         :arg logging.LOG_LEVEL log_level: Control the level of log messages
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
-        # Todo: Option to pass configuration object instead of filename, this
-        #     would be preferable for downstream client applications so they
-        #     can read their own configuration file instead of using the Manwë
-        #     configuration.
         self.config = Config(filename=config, api_root=api_root, user=user,
                              password=password)
         self.set_log_level(log_level)
