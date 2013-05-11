@@ -25,5 +25,4 @@ GitHub repository::
 
     git clone https://github.com/martijnvermaat/manwe.git
     cd manwe
-    pip install -r requirements.txt
     python setup.py install
