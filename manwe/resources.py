@@ -422,8 +422,9 @@ class Sample(_Resource):
         data = {'name': name,
                 'pool_size': pool_size,
                 'coverage_profile': coverage_profile,
-                'public': public,
-                'notes': notes}
+                'public': public}
+        if notes is not None:
+            data.update(notes=notes)
         return super(Sample, cls).create(session, data=data)
 
     @property
@@ -464,8 +465,9 @@ class User(_Resource):
         data = {'login': login,
                 'password': password,
                 'name': name or login,
-                'email': email,
                 'roles': roles or []}
+        if email is not None:
+            data.update(email=email)
         return super(User, cls).create(session, data=data)
 
     @property
