@@ -182,8 +182,8 @@ class _Resource(object):
         Save any unsaved changes on this resource.
         """
         if self.dirty:
-            self.session.request(self._fields['uri'], method='PATCH',
-                                 data={k: self._fields[k] for k in self._dirty})
+            self.session.patch(self._fields['uri'],
+                               data={k: self._fields[k] for k in self._dirty})
             self._dirty.clear()
         # Todo: On save, refresh all fields from server.
 
