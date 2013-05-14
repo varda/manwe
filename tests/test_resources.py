@@ -177,9 +177,8 @@ class TestSample():
         sample.pool_size = 3
         assert sample.dirty
         sample.save()
-        self.session.request.assert_called_once_with(
-            '/samples/3', method='PATCH', data={'name': 'edited test sample',
-                                                'pool_size': 3})
+        self.session.patch.assert_called_once_with(
+            '/samples/3', data={'name': 'edited test sample', 'pool_size': 3})
         assert not sample.dirty
 
     def test_sample_collection(self):
