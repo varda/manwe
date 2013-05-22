@@ -38,8 +38,7 @@ class TestSession():
                                                           'coverage_profile': True,
                                                           'public': True}),
                                          headers={'Content-Type': 'application/json',
-                                                  'Accept-Version': session.ACCEPT_VERSION},
-                                         auth=(None, None))
+                                                  'Accept-Version': session.ACCEPT_VERSION})
 
     def test_add_data_source(self):
         """
@@ -63,5 +62,4 @@ class TestSession():
                                                'filetype': 'vcf',
                                                'gzipped': False},
                                          files={'data': test_data},
-                                         headers={'Accept-Version': session.ACCEPT_VERSION},
-                                         auth=(None, None))
+                                         headers={'Accept-Version': session.ACCEPT_VERSION})

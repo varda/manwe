@@ -244,8 +244,7 @@ class TestSample():
                 data=json.dumps({'user': '/users/8'}),
                 headers={'Content-Type': 'application/json',
                          'Range': 'items=0-19',
-                         'Accept-Version': session.ACCEPT_VERSION},
-                auth=(None, None))
+                         'Accept-Version': session.ACCEPT_VERSION})
             assert_equal(samples.user, user)
 
 
