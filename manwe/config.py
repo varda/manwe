@@ -105,8 +105,7 @@ class Config(object):
             config = ConfigObj(overwrite)
 
         self.api_root = config.get('api_root', DEFAULT_API_ROOT)
-        self.user = config.get('user')
-        self.password = config.get('password')
+        self.token = config.get('token')
         self.poll_sleep = int(config.get('poll_sleep', DEFAULT_POLL_SLEEP))
         self.max_polls = int(config.get('max_polls', DEFAULT_MAX_POLLS))
 

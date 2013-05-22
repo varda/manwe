@@ -54,7 +54,7 @@ class Session(object):
                                        resources.VariantCollection,
                                        resources.VariationCollection)}
 
-    def __init__(self, api_root=None, user=None, password=None, config=None,
+    def __init__(self, api_root=None, token=None, config=None,
                  log_level=logging.INFO):
         """
         Create a `Session`.
@@ -63,8 +63,7 @@ class Session(object):
         :arg logging.LOG_LEVEL log_level: Control the level of log messages
             you will see. Use `log_level=logging.DEBUG` to troubleshoot.
         """
-        self.config = Config(filename=config, api_root=api_root, user=user,
-                             password=password)
+        self.config = Config(filename=config, api_root=api_root, token=token)
         self.set_log_level(log_level)
         self._cached_uris = None
         self._api_errors = collections.defaultdict(
@@ -137,7 +136,9 @@ class Session(object):
                                         cls=resources.ResourceJSONEncoder)
             headers['Content-Type'] = 'application/json'
         headers['Accept-Version'] = ACCEPT_VERSION
-        kwargs['auth'] = self.config.user, self.config.password
+        #kwargs['auth'] = self.config.user, self.config.password
+        if self.config.token:
+            headers['Authorization'] = 'Token ' + self.config.token
         try:
             response = requests.request(method, uri, headers=headers, **kwargs)
         except requests.RequestException as e:
