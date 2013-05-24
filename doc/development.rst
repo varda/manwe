@@ -95,6 +95,8 @@ grepping the source code for ``Todo``.
   they can read their own configuration file instead of using the Manwë
   configuration.
 * Implement all of the Varda API.
+* Some requests are only allowed with Basic Authentication (not with a token)
+  but this is not yet handled in Manwë.
 
 
 .. _nose: https://nose.readthedocs.org/
