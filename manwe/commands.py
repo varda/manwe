@@ -117,12 +117,12 @@ def show_sample(uri, config=None):
     for variation in session.variations(sample=sample):
         print
         print 'Variation:   %s' % variation.uri
-        print 'State:       %s' % ('imported' if variation.imported else 'not imported')
+        print 'State:       %s' % ('imported' if variation.task['done'] else 'not imported')
 
     for coverage in session.coverages(sample=sample):
         print
         print 'Coverage:    %s' % coverage.uri
-        print 'State:       %s' % ('imported' if coverage.imported else 'not imported')
+        print 'State:       %s' % ('imported' if coverage.task['done'] else 'not imported')
 
 
 def add_user(login, password, name=None, config=None, **kwargs):

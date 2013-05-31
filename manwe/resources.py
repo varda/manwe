@@ -188,6 +188,15 @@ class _Resource(object):
         # Todo: On save, refresh all fields from server.
 
 
+class _TaskedResource(_Resource):
+    """
+    Base class for representing server resources with tasks.
+    """
+    def __new__(cls, *args, **kwargs):
+        cls._immutable = cls._immutable + ('task',)
+        return super(_TaskedResource, cls).__new__(cls, *args, **kwargs)
+
+
 class _ResourceCollection(object):
     """
     Base class for representing server resource collections, iterators
@@ -279,7 +288,7 @@ class _ResourceCollection(object):
     __next__ = next
 
 
-class Annotation(_Resource):
+class Annotation(_TaskedResource):
     """
     Class for representing an annotation resource.
     """
@@ -317,7 +326,7 @@ class AnnotationCollection(_ResourceCollection):
     resource_class = Annotation
 
 
-class Coverage(_Resource):
+class Coverage(_TaskedResource):
     """
     Class for representing a coverage resource.
     """
@@ -533,7 +542,7 @@ class VariantCollection(_ResourceCollection):
     resource_class = Variant
 
 
-class Variation(_Resource):
+class Variation(_TaskedResource):
     """
     Class for representing a variation resource.
     """
