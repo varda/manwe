@@ -84,6 +84,55 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
         log('Started coverage import: %s' % coverage.uri)
 
 
+def import_variation(uri, vcf_file, data_uploaded=False,
+                     prefer_genotype_likelihoods=False, config=None):
+    """
+    Import variantion file for existing sample.
+    """
+    # Todo: Nice error if file cannot be read.
+    if data_uploaded:
+        source = {'local_file': vcf_file}
+    else:
+        source = {'data': open(vcf_file)}
+
+    session = Session(config=config)
+    sample = session.sample(uri)
+
+    data_source = session.add_data_source(
+        'Variants from file "%s"' % vcf_file,
+        filetype='vcf',
+        gzipped=filename.endswith('.gz'),
+        **source)
+    log('Added data source: %s' % data_source.uri)
+    variation = session.add_variation(
+        sample, data_source,
+        prefer_genotype_likelihoods=prefer_genotype_likelihoods)
+    log('Started variation import: %s' % variation.uri)
+
+
+def import_coverage(uri, bed_file, data_uploaded=False, config=None):
+    """
+    Import coverage file for existing sample.
+    """
+    # Todo: Nice error if file cannot be read.
+    if data_uploaded:
+        source = {'local_file': bed_file}
+    else:
+        source = {'data': open(bed_file)}
+
+    session = Session(config=config)
+    sample = session.sample(uri)
+
+    data_source = session.add_data_source(
+        'Regions from file "%s"' % bed_file,
+        filetype='bed',
+        gzipped=filename.endswith('.gz'),
+        **source)
+    log('Added data source: %s' % data_source.uri)
+    coverage = session.add_coverage(sample, data_source)
+    log('Started coverage import: %s' % coverage.uri)
+
+
 def activate_sample(uri, config=None):
     """
     Activate sample.
@@ -240,6 +289,33 @@ def main():
                    help='in VCF files, derive genotypes from likelihood scores '
                    'instead of using reported genotypes (use this if the file '
                    'was produced by samtools)')
+
+    p = subparsers.add_parser('import-vcf', help='import VCF file for existing sample',
+                              description=import_variation.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=import_variation)
+    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
+    p.add_argument('vcf_file', metavar='VCF_FILE',
+                   help='file in VCF 4.1 format to import variants from')
+    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
+                   action='store_true', help='data files are already '
+                   'uploaded to the server')
+    p.add_argument('-l', '--prefer_genotype_likelihoods',
+                   dest='prefer_genotype_likelihoods', action='store_true',
+                   help='in VCF files, derive genotypes from likelihood scores '
+                   'instead of using reported genotypes (use this if the file '
+                   'was produced by samtools)')
+
+    p = subparsers.add_parser('import-bed', help='import BED file for existing sample',
+                              description=import_coverage.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=import_coverage)
+    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
+    p.add_argument('bed_file', metavar='BED_FILE',
+                   help='file in BED format to import covered regions from')
+    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
+                   action='store_true', help='data files are already '
+                   'uploaded to the server')
 
     p = subparsers.add_parser('activate', help='activate sample',
                               description=activate_sample.__doc__.split('\n\n')[0],
