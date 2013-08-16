@@ -101,7 +101,7 @@ def import_variation(uri, vcf_file, data_uploaded=False,
     data_source = session.add_data_source(
         'Variants from file "%s"' % vcf_file,
         filetype='vcf',
-        gzipped=filename.endswith('.gz'),
+        gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
     variation = session.add_variation(
@@ -126,7 +126,7 @@ def import_coverage(uri, bed_file, data_uploaded=False, config=None):
     data_source = session.add_data_source(
         'Regions from file "%s"' % bed_file,
         filetype='bed',
-        gzipped=filename.endswith('.gz'),
+        gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
     coverage = session.add_coverage(sample, data_source)
