@@ -21,7 +21,7 @@ from .errors import (ApiError, BadRequestError, ForbiddenError,
 from . import resources
 
 
-ACCEPT_VERSION = '>=0.2.0,<0.3.0'
+ACCEPT_VERSION = '>=0.2.0,<0.4.0'
 
 
 logger = logging.getLogger('manwe')
