@@ -203,6 +203,35 @@ def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
     log('Started annotation: %s' % annotation.uri)
 
 
+def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
+                     sample_frequency=None, config=None):
+    """
+    Annotate regions file.
+    """
+    sample_frequency = sample_frequency or []
+
+    # Todo: Nice error if file cannot be read.
+    if data_uploaded:
+        source = {'local_file': bed_file}
+    else:
+        source = {'data': open(bed_file)}
+
+    session = Session(config=config)
+
+    sample_frequency = [session.sample(uri) for uri in sample_frequency]
+
+    data_source = session.add_data_source(
+        'Regions from file "%s"' % bed_file,
+        filetype='bed',
+        gzipped=bed_file.endswith('.gz'),
+        **source)
+    log('Added data source: %s' % data_source.uri)
+    annotation = session.add_annotation(
+        data_source, global_frequency=not no_global_frequency,
+        sample_frequency=sample_frequency)
+    log('Started annotation: %s' % annotation.uri)
+
+
 def add_user(login, password, name=None, config=None, **kwargs):
     """
     Add an API user.
@@ -364,6 +393,21 @@ def main():
     p.set_defaults(func=annotate_variation)
     p.add_argument('vcf_file', metavar='VCF_FILE',
                    help='file in VCF 4.1 format to annotate')
+    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
+                   action='store_true', help='data files are already '
+                   'uploaded to the server')
+    p.add_argument('-n', '--no-global-frequencies', dest='no_global_frequency',
+                   action='store_true', help='do not annotate with global frequencies')
+    p.add_argument('-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
+                   nargs='+', required=False, default=[],
+                   help='annotate with frequencies over these samples')
+
+    p = subparsers.add_parser('annotate-bed', help='annotate BED file with frequencies',
+                              description=annotate_regions.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=annotate_regions)
+    p.add_argument('bed_file', metavar='BED_FILE',
+                   help='file in BED format to annotate')
     p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
                    action='store_true', help='data files are already '
                    'uploaded to the server')
