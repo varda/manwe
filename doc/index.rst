@@ -14,7 +14,7 @@ abstraction level that is nice to work with from Python code.
 
     >>> import manwe
     >>> session = manwe.Session()
-    >>> user = add_user('testlogin', 'password')
+    >>> user = session.add_user('testlogin', 'password')
     >>> user.dirty
     False
     >>> user.name = 'Test User'
