@@ -253,7 +253,8 @@ class _ResourceCollection(object):
         try:
             response = self.session.get(
                 uri=self.session.uris[self.key + '_collection'],
-                data=self._args,
+                data={arg: value for arg, value in self._args.items()
+                      if value is not None},
                 headers={'Range': range_.to_header()})
         except UnsatisfiableRangeError:
             # Todo: If we'd store the response object in the error object, we
