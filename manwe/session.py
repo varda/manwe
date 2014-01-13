@@ -21,7 +21,7 @@ from .errors import (ApiError, BadRequestError, ForbiddenError,
 from . import resources
 
 
-ACCEPT_VERSION = '>=0.2.0,<0.4.0'
+ACCEPT_VERSION = '>=1.0.0,<2.0.0'
 
 
 logger = logging.getLogger('manwe')
@@ -90,7 +90,8 @@ class Session(object):
             keys.add('authentication')
             keys.add('genome')
             response = self.get(self.config.api_root).json()
-            self._cached_uris = {key: response[key]['uri'] for key in keys}
+            self._cached_uris = {key: response['root'][key]['uri']
+                                 for key in keys}
         return self._cached_uris
 
     def _qualified_uri(self, uri):

@@ -197,7 +197,7 @@ class TestSample():
         def create_mock_response(start, end, total):
             samples = [create_sample(i) for i in range(start, end)]
             mock_response = Mock(requests.Response)
-            mock_response.json.return_value = {'collection': {'items': samples}}
+            mock_response.json.return_value = {'sample_collection': {'items': samples}}
             mock_response.headers = {'Content-Range': 'items %d-%d/%d' % (start, end, total)}
             return mock_response
 
@@ -223,7 +223,7 @@ class TestSample():
         Request a sample collection for a user.
         """
         mock_response = Mock(requests.Response, status_code=200)
-        mock_response.json.return_value = {'collection': {'items': []}}
+        mock_response.json.return_value = {'sample_collection': {'items': []}}
         mock_response.headers = {'Content-Range': 'items 0-0/1'}
 
         s = session.Session(config='/dev/null')

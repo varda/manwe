@@ -264,7 +264,7 @@ class _ResourceCollection(object):
             return
         self._resources.extend(
             self.resource_class(self.session, resource)
-            for resource in response.json()['collection']['items'])
+            for resource in response.json()[self.key + '_collection']['items'])
         content_range = werkzeug.http.parse_content_range_header(
             response.headers['Content-Range'])
         self.size = content_range.length
