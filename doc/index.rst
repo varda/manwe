@@ -75,4 +75,4 @@ Indices and tables
 * :ref:`search`
 
 
-.. _Varda: https://github.com/martijnvermaat/varda
+.. _Varda: https://github.com/varda/varda

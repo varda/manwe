@@ -31,7 +31,7 @@ __date__ = '11 May 2013'
 __version__ = '.'.join(__version_info__)
 __author__ = 'Martijn Vermaat'
 __contact__ = 'martijn@vermaat.name'
-__homepage__ = 'https://github.com/martijnvermaat/manwe'
+__homepage__ = 'https://github.com/varda/manwe'
 
 
 # Set default logging handler to avoid "No handler found" warnings.

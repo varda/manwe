@@ -1,8 +1,7 @@
 Development
 ===========
 
-Development of Manwë happens on GitHub:
-https://github.com/martijnvermaat/manwe
+Development of Manwë happens on GitHub: https://github.com/varda/manwe
 
 
 Contributing

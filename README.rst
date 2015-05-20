@@ -54,4 +54,4 @@ the AUTHORS file for a list of authors.
 
 
 .. _Sphinx: http://sphinx-doc.org/
-.. _Varda: https://github.com/martijnvermaat/varda
+.. _Varda: https://github.com/varda/varda
