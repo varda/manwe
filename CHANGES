@@ -7,7 +7,7 @@ Here you can see the full list of changes between each Manwë release.
 Version 0.2.0
 -------------
 
-Release date to be decided.
+Released on August 31st 2015.
 
 - Bump API compatibility to `>=1.0.0,<2.0.0`.
 - Moved `git repository <https://github.com/varda/manwe>`_ to
