@@ -4,10 +4,22 @@ Changelog
 Here you can see the full list of changes between each Manwë release.
 
 
-Version 0.1.1
+Version 0.2.0
 -------------
 
 Release date to be decided.
+
+- Bump API compatibility to `>=1.0.0,<2.0.0`.
+- Moved `git repository <https://github.com/varda/manwe>`_ to
+  `GitHub Varda organisation <https://github.com/varda>`_.
+- Do not send uninitialized collection arguments.
+- Annotate regions.
+- Annotate a VCF file from the commandline.
+- Import VCF/BED for existing samples.
+- Get task status.
+- Use API token instead of login and password.
+- Fix sample activation.
+- Support unset optional fields in resource creation.
 
 
 Version 0.1.0
