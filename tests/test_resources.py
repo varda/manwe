@@ -4,23 +4,17 @@ Unit tests for :mod:`manwe.resources`.
 
 
 import datetime
-import json
 
-from mock import Mock, patch
-from nose.tools import *
-import requests
+import pytest
+from varda import db
+from varda.models import Sample, User
 
-from manwe import resources, session
+from manwe import resources
+
+import utils
 
 
-class TestAnnotation():
-    """
-    Test :class:`manwe.resources.Annotation` and :class:`manwe.resources.AnnotationCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestAnnotation(object):
     def test_read_annotation(self):
         """
         Read field values from an annotation with correct types.
@@ -29,18 +23,11 @@ class TestAnnotation():
                       original_data_source={'uri': '/data_sources/4'},
                       annotated_data_source={'uri': '/data_sources/6'})
 
-        annotation = resources.Annotation(self.session, fields)
-        assert_equal(annotation.uri, '/annotations/3')
+        annotation = resources.Annotation(None, fields)
+        assert annotation.uri == '/annotations/3'
 
 
-class TestCoverage():
-    """
-    Test :class:`manwe.resources.Coverage` and :class:`manwe.resources.CoverageCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestCoverage(object):
     def test_read_coverage(self):
         """
         Read field values from a coverage with correct types.
@@ -49,18 +36,11 @@ class TestCoverage():
                       sample={'uri': '/samples/3'},
                       data_source={'uri': '/data_sources/1'})
 
-        coverage = resources.Coverage(self.session, fields)
-        assert_equal(coverage.uri, '/coverages/8')
+        coverage = resources.Coverage(None, fields)
+        assert coverage.uri == '/coverages/8'
 
 
-class TestDataSource():
-    """
-    Test :class:`manwe.resources.DataSource` and :class:`manwe.resources.DataSourceCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestDataSource(object):
     def test_read_data_source(self):
         """
         Read field values from a data source with correct types.
@@ -73,20 +53,13 @@ class TestDataSource():
                       gzipped=True,
                       added='2012-11-23T10:55:12')
 
-        data_source = resources.DataSource(self.session, fields)
-        assert_equal(data_source.uri, '/data_sources/4')
-        assert_equal(data_source.gzipped, True)
-        assert_equal(data_source.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+        data_source = resources.DataSource(None, fields)
+        assert data_source.uri == '/data_sources/4'
+        assert data_source.gzipped
+        assert data_source.added == datetime.datetime(2012, 11, 23, 10, 55, 12)
 
 
-class TestSample():
-    """
-    Test :class:`manwe.resources.Sample` and :class:`manwe.resources.SampleCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session, uris={'sample_collection': '/samples'})
-
+class TestSample(object):
     def test_read_sample(self):
         """
         Read field values from a sample with correct types.
@@ -100,19 +73,22 @@ class TestSample():
                    'active': True,
                    'notes': 'Some test notes',
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(self.session, fields)
-        assert_equal(sample.name, 'test sample')
-        assert_equal(sample.pool_size, 5)
-        assert_equal(sample.public, False)
-        assert_equal(sample.notes, 'Some test notes')
-        assert_equal(sample.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
-        assert_equal(str(sample), sample.uri)
+        sample = resources.Sample(None, fields)
+        assert sample.name == 'test sample'
+        assert sample.pool_size == 5
+        assert not sample.public
+        assert sample.notes == 'Some test notes'
+        assert sample.added == datetime.datetime(2012, 11, 23, 10, 55, 12)
+        assert str(sample) == sample.uri
 
     def test_read_sample_user(self):
         """
         Read user from a sample.
         """
-        self.session.attach_mock(Mock(return_value='mock user'), 'user')
+        class MockSession(object):
+            def user(self, uri):
+                return 'mock user'
+        s = MockSession()
 
         fields =  {'name': 'test sample',
                    'pool_size': 5,
@@ -122,10 +98,9 @@ class TestSample():
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(self.session, fields)
+        sample = resources.Sample(s, fields)
         user = sample.user
-        self.session.user.assert_called_once_with('/users/8')
-        assert_equal(user, 'mock user')
+        assert user == 'mock user'
 
     def test_edit_sample(self):
         """
@@ -139,12 +114,11 @@ class TestSample():
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(self.session, fields)
+        sample = resources.Sample(None, fields)
         assert not sample.dirty
         sample.name = 'edited test sample'
         assert sample.dirty
 
-    @raises(AttributeError)
     def test_edit_immutable_sample(self):
         """
         Edit immutable field values of a sample.
@@ -157,30 +131,12 @@ class TestSample():
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(self.session, fields)
-        sample.uri = '/some/uri/88'
+        sample = resources.Sample(None, fields)
+        with pytest.raises(AttributeError):
+            sample.uri = '/some/uri/88'
 
-    def test_edit_save_sample(self):
-        """
-        Save edited field values of a sample.
-        """
-        fields =  {'name': 'test sample',
-                   'pool_size': 5,
-                   'coverage_profile': True,
-                   'public': False,
-                   'uri': '/samples/3',
-                   'user': {'uri': '/users/8'},
-                   'active': True,
-                   'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(self.session, fields)
-        sample.name = 'edited test sample'
-        sample.pool_size = 3
-        assert sample.dirty
-        sample.save()
-        self.session.patch.assert_called_once_with(
-            '/samples/3', data={'name': 'edited test sample', 'pool_size': 3})
-        assert not sample.dirty
 
+class TestSampleCollection(utils.TestEnvironment):
     def test_sample_collection(self):
         """
         Iterate over the samples in a sample collection.
@@ -194,68 +150,37 @@ class TestSample():
                     'user': {'uri': '/users/8'},
                     'active': True,
                     'added': '2012-11-23T10:55:12'}
-        def create_mock_response(start, end, total):
-            samples = [create_sample(i) for i in range(start, end)]
-            mock_response = Mock(requests.Response)
-            mock_response.json.return_value = {'sample_collection': {'items': samples}}
-            mock_response.headers = {'Content-Range': 'items %d-%d/%d' % (start, end, total)}
-            return mock_response
 
         # Total number of samples in our collection is 2 times the cache size
         # plus 3.
-        total = 2 * resources.COLLECTION_CACHE_SIZE + 3
-        pages = [(1, resources.COLLECTION_CACHE_SIZE + 1),
-                 (resources.COLLECTION_CACHE_SIZE + 1, 2 * resources.COLLECTION_CACHE_SIZE + 1),
-                 (2 * resources.COLLECTION_CACHE_SIZE + 1, 2 * resources.COLLECTION_CACHE_SIZE + 4)]
-        self.session.get.side_effect = (create_mock_response(start, end, total)
-                                        for start, end in pages)
+        # TODO: Create samples.
+        total = resources.COLLECTION_CACHE_SIZE * 2 + 3
+
+        user = User.query.first()
+        for i in range(total):
+            sample = Sample(user, 'test sample %d' % (i + 1))
+            db.session.add(sample)
+        db.session.commit()
 
         samples = resources.SampleCollection(self.session)
-        assert_equal(samples.size, total)
+        assert samples.size == total
         sample_list = list(samples)
-        assert_equal(len(sample_list), total)
-        assert_equal(sample_list[0].name, 'test sample 1')
-        assert_equal(sample_list[-1].name, 'test sample %i' % total)
-
+        assert len(sample_list) == total
+        assert sample_list[0].name == 'test sample 1'
+        assert sample_list[-1].name == 'test sample %i' % total
 
     def test_sample_collection_user(self):
         """
         Request a sample collection for a user.
         """
-        mock_response = Mock(requests.Response, status_code=200)
-        mock_response.json.return_value = {'sample_collection': {'items': []}}
-        mock_response.headers = {'Content-Range': 'items 0-0/1'}
+        user_uri = self.uri_for_user()
+        user = self.session.user(user_uri)
 
-        s = session.Session(config='/dev/null')
-        s._cached_uris = {'sample_collection': 'http://samples/'}
-
-        fields = dict(uri='/users/8',
-                      name='test',
-                      login='test',
-                      roles=['importer'],
-                      added='2012-11-23T10:55:12')
-        user = resources.User(s, fields)
-
-        with patch.object(requests, 'request') as mock_request:
-            mock_request.return_value = mock_response
-            samples = resources.SampleCollection(s, user=user)
-            mock_request.assert_called_once_with(
-                'GET', 'http://samples/',
-                data=json.dumps({'user': '/users/8'}),
-                headers={'Content-Type': 'application/json',
-                         'Range': 'items=0-19',
-                         'Accept-Version': session.ACCEPT_VERSION})
-            assert_equal(samples.user, user)
+        samples = resources.SampleCollection(self.session, user=user)
+        assert samples.user == user
 
 
-class TestUser():
-    """
-    Test :class:`manwe.resources.User` and :class:`manwe.resources.UserCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestUser(object):
     def test_read_user(self):
         """
         Read field values from a user with correct types.
@@ -267,11 +192,11 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
-        assert_equal(user.uri, '/users/4')
-        assert_equal(user.email, 'test@test.com')
-        assert_equal(user.roles, {'importer'})
-        assert_equal(user.added, datetime.datetime(2012, 11, 23, 10, 55, 12))
+        user = resources.User(None, fields)
+        assert user.uri == '/users/4'
+        assert user.email == 'test@test.com'
+        assert user.roles == {'importer'}
+        assert user.added == datetime.datetime(2012, 11, 23, 10, 55, 12)
 
     def test_edit_user(self):
         """
@@ -283,12 +208,11 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
+        user = resources.User(None, fields)
         assert not user.dirty
         user.name = 'edited test user'
         assert user.dirty
 
-    @raises(AttributeError)
     def test_add_user_role_directly(self):
         """
         Try to add role to a user directly.
@@ -299,8 +223,9 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
-        user.roles.add('annotator')
+        user = resources.User(None, fields)
+        with pytest.raises(AttributeError):
+            user.roles.add('annotator')
 
     def test_add_user_role(self):
         """
@@ -312,11 +237,11 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
+        user = resources.User(None, fields)
         assert not user.dirty
         user.add_role('annotator')
         assert user.dirty
-        assert_equal(user.roles, {'importer', 'annotator'})
+        assert user.roles == {'importer', 'annotator'}
 
     def test_remove_user_role(self):
         """
@@ -328,11 +253,11 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
+        user = resources.User(None, fields)
         assert not user.dirty
         user.remove_role('importer')
         assert user.dirty
-        assert_equal(user.roles, set())
+        assert user.roles == set()
 
     def test_edit_user_role(self):
         """
@@ -344,21 +269,14 @@ class TestUser():
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(self.session, fields)
+        user = resources.User(None, fields)
         assert not user.dirty
         user.roles = {'importer', 'annotator'}
         assert user.dirty
-        assert_equal(user.roles, {'importer', 'annotator'})
+        assert user.roles == {'importer', 'annotator'}
 
 
-class TestVariant():
-    """
-    Test :class:`manwe.resources.Variant` and :class:`manwe.resources.VariantCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestVariant(object):
     def test_read_variant(self):
         """
         Read field values from a variant with correct types.
@@ -371,21 +289,14 @@ class TestVariant():
                       global_frequency=(0.4, [0.3, 0.1]),
                       sample_frequency=[(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])])
 
-        variant = resources.Variant(self.session, fields)
-        assert_equal(variant.uri, '/variants/3')
-        assert_equal(variant.position, 45353)
-        assert_equal(variant.global_frequency, (0.4, [0.3, 0.1]))
-        assert_equal(variant.sample_frequency, [(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])])
+        variant = resources.Variant(None, fields)
+        assert variant.uri == '/variants/3'
+        assert variant.position == 45353
+        assert variant.global_frequency == (0.4, [0.3, 0.1])
+        assert variant.sample_frequency == [(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])]
 
 
-class TestVariation():
-    """
-    Test :class:`manwe.resources.Variation` and :class:`manwe.resources.VariationCollection`
-    classes.
-    """
-    def setup(self):
-        self.session = Mock(session.Session)
-
+class TestVariation(object):
     def test_read_variation(self):
         """
         Read field values from a variation with correct types.
@@ -394,5 +305,5 @@ class TestVariation():
                       sample={'uri': '/samples/3'},
                       data_source={'uri': '/data_sources/6'})
 
-        variation = resources.Variation(self.session, fields)
-        assert_equal(variation.uri, '/variations/23')
+        variation = resources.Variation(None, fields)
+        assert variation.uri == '/variations/23'

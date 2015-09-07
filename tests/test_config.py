@@ -6,33 +6,27 @@ Unit tests for :mod:`manwe.config`.
 import os
 import tempfile
 
-from mock import patch
-from nose.tools import *
+import pytest
 
 from manwe import config
 
 
-class TestConfig():
-    """
-    Test :mod:`manwe.config`.
-    """
-    @raises(AttributeError)
+class TestConfig(object):
     def test_nonexisting_values(self):
         """
         We only have the known config values.
         """
         c = config.Config()
-        c.bladiebla
+        with pytest.raises(AttributeError):
+            c.bladiebla
 
     def test_default_values(self):
         """
         With no config files, we are left with default values.
         """
-        with patch.object(os.path, 'isfile') as mock_isfile:
-            mock_isfile.return_value = False
-            c = config.Config()
-        assert_equal(c.token, None)
-        assert_equal(c.poll_sleep, config.DEFAULT_POLL_SLEEP)
+        c = config.Config('/dev/null')
+        assert c.token is None
+        assert c.poll_sleep == config.DEFAULT_POLL_SLEEP
 
     def test_from_file(self):
         """
@@ -44,8 +38,8 @@ class TestConfig():
                 temp_config.write('token = abcde\n')
                 temp_config.write('poll_sleep = 88\n')
             c = config.Config(path)
-            assert_equal(c.token, 'abcde')
-            assert_equal(c.poll_sleep, 88)
+            assert c.token == 'abcde'
+            assert c.poll_sleep == 88
         finally:
             os.unlink(path)
 
@@ -64,9 +58,9 @@ class TestConfig():
                 temp_config.write('token = abcde\n')
                 temp_config.write('poll_sleep = 88\n')
             c = config.Config(path, token='uvwxyz')
-            assert_equal(c.token, 'uvwxyz')
-            assert_equal(c.poll_sleep, 88)
-            assert_equal(c.max_polls, config.DEFAULT_MAX_POLLS)
+            assert c.token, 'uvwxyz'
+            assert c.poll_sleep, 88
+            assert c.max_polls, config.DEFAULT_MAX_POLLS
         finally:
             os.unlink(path)
 
@@ -81,9 +75,9 @@ class TestConfig():
                 temp_config.write('token = abcde\n')
                 temp_config.write('poll_sleep = 88\n')
             c = config.Config(path, max_polls='78')
-            assert_equal(type(c.api_root), str)
-            assert_equal(type(c.token), str)
-            assert_equal(type(c.poll_sleep), int)
-            assert_equal(type(c.max_polls), int)
+            assert type(c.api_root) == str
+            assert type(c.token) == str
+            assert type(c.poll_sleep) == int
+            assert type(c.max_polls) == int
         finally:
             os.unlink(path)
