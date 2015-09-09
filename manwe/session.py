@@ -59,11 +59,24 @@ class Session(object):
         """
         Create a `Session`.
 
-        :arg str config: Configuration filename.
-        :arg logging.LOG_LEVEL log_level: Control the level of log messages
-            you will see. Use `log_level=logging.DEBUG` to troubleshoot.
+        :arg api_root: Varda API root endpoint.
+        :type api_root: str
+        :arg token: Varda API authentication token.
+        :type token: str
+        :arg config: Manwë configuration object (`api_root` and `token` take
+           precedence).
+        :type config: config.Config
+        :arg log_level: Control the level of log messages you will see. Use
+          `log_level=logging.DEBUG` to troubleshoot.
+        :type log_level: logging.LOG_LEVEL
         """
-        self.config = Config(filename=config, api_root=api_root, token=token)
+        self.config = config or Config()
+
+        if api_root:
+            self.config.API_ROOT = api_root
+        if token:
+            self.config.TOKEN = token
+
         self.set_log_level(log_level)
         self._cached_uris = None
         self._api_errors = collections.defaultdict(
@@ -89,16 +102,16 @@ class Session(object):
             keys = {key + '_collection' for key in self._collections}
             keys.add('authentication')
             keys.add('genome')
-            response = self.get(self.config.api_root).json()
+            response = self.get(self.config.API_ROOT).json()
             self._cached_uris = {key: response['root'][key]['uri']
                                  for key in keys}
         return self._cached_uris
 
     def _qualified_uri(self, uri):
         if uri.startswith('/'):
-            if self.config.api_root.endswith('/'):
-                return self.config.api_root + uri[1:]
-            return self.config.api_root + uri
+            if self.config.API_ROOT.endswith('/'):
+                return self.config.API_ROOT + uri[1:]
+            return self.config.API_ROOT + uri
         return uri
 
     def get(self, *args, **kwargs):
@@ -137,9 +150,9 @@ class Session(object):
                                         cls=resources.ResourceJSONEncoder)
             headers['Content-Type'] = 'application/json'
         headers['Accept-Version'] = ACCEPT_VERSION
-        #kwargs['auth'] = self.config.user, self.config.password
-        if self.config.token:
-            headers['Authorization'] = 'Token ' + self.config.token
+        #kwargs['auth'] = self.config.USER, self.config.PASSWORD
+        if self.config.TOKEN:
+            headers['Authorization'] = 'Token ' + self.config.TOKEN
         try:
             response = requests.request(method, uri, headers=headers, **kwargs)
         except requests.RequestException as e:

@@ -11,13 +11,21 @@ Todo: Move some of the docstring from the _old_population_study.py file here.
 
 
 import argparse
+import os
 import re
 import sys
 
-from . import config
+from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
 from .session import Session
+
+
+SYSTEM_CONFIGURATION = '/etc/manwe/config'
+USER_CONFIGURATION = os.path.join(
+    os.environ.get('XDG_CONFIG_HOME', None) or
+    os.path.join(os.path.expanduser('~'), '.config'),
+    'manwe', 'config')
 
 
 def log(message):
@@ -304,6 +312,46 @@ def data_source_data(uri, config=None):
         sys.stdout.write(chunk)
 
 
+def create_config(filename=None):
+    """
+    Create a Manwë configuration object.
+
+    Configuration values are initialized from the :mod:`manwe.default_config`
+    module.
+
+    By default, configuration values are then read from two locations, in this
+    order:
+
+    1. `SYSTEM_CONFIGURATION`
+    2. `USER_CONFIGURATION`
+
+    If both files exist, values defined in the second overwrite values defined
+    in the first.
+
+    An exception to this is when the optional `filename` argument is set. In
+    that case, the locations listed above are ignored and the configuration is
+    read from `filename`.
+
+    :arg filename: Optional filename to read configuration from. If present,
+      this overrides automatic detection of configuration file location.
+    :type filename: str
+
+    :return: Manwë configuration object.
+    :rtype: config.Config
+    """
+    config = Config()
+
+    if filename:
+        config.from_pyfile(filename)
+    else:
+        if os.path.isfile(SYSTEM_CONFIGURATION):
+            config.from_pyfile(SYSTEM_CONFIGURATION)
+        if os.path.isfile(USER_CONFIGURATION):
+            config.from_pyfile(USER_CONFIGURATION)
+
+    return config
+
+
 def main():
     """
     Manwë command line interface.
@@ -457,12 +505,13 @@ def main():
     args = parser.parse_args()
 
     try:
-        args.func(**{k: v for k, v in vars(args).items()
-                     if k not in ('func', 'subcommand')})
+        args.func(config=create_config(args.config),
+                  **{k: v for k, v in vars(args).items()
+                     if k not in ('config', 'func', 'subcommand')})
     except UnauthorizedError:
         abort('Authentication is needed, please make sure you have the '
-              'correct login and password defined in "%s"'
-              % (args.config or config.USER_CONFIGURATION))
+              'correct authentication token defined in "%s"'
+              % (args.config or USER_CONFIGURATION))
     except ForbiddenError:
         abort('Sorry, you do not have permission')
     except BadRequestError as (code, message):

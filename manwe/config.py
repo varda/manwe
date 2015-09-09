@@ -1,21 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Manwë configuration.
+Manwë configuration object.
 
-By default, configuration values are read from two locations, in this order:
-
-1. ``/etc/manwe/config``
-2. ``$XDG_CONFIG_HOME/manwe/config``
-
-If both files exist, values defined in the second overwrite values defined in
-the first.
-
-An exception to this system is when the optional `filename` argument is passed
-to :class:`Config`. In that case, the locations listed above are ignored and
-the configuration is read from `filename`.
-
-Additionally, any keyword arguments passed to :class:`Config` other than
-`filename` will overwrite values read from a file.
 
 .. moduleauthor:: Martijn Vermaat <martijn@vermaat.name>
 
@@ -23,111 +9,40 @@ Additionally, any keyword arguments passed to :class:`Config` other than
 """
 
 
-# Todo: Drop configobj dependency, probably use something like ConfigParser
-#     from the standard library. I think configobj is our only dependency
-#     keeping us from running on Python 3.
-
-
 import os
-from configobj import ConfigObj
+
+import flask.config
+
+import default_config
 
 
-DEFAULT_API_ROOT = 'http://127.0.0.1:5000'
-DEFAULT_POLL_SLEEP = 5
-DEFAULT_MAX_POLLS = 50000
-
-SYSTEM_CONFIGURATION = '/etc/manwe/config'
-USER_CONFIGURATION = os.path.join(
-    os.environ.get('XDG_CONFIG_HOME', None)
-    or os.path.join(os.path.expanduser('~'), '.config'),
-    'manwe', 'config')
-
-
-class ConfigurationError(Exception):
+class AttributeDictMixin(object):
     """
-    Raised when a configuration file cannot be read.
+    Augment classes with a Mapping interface by adding attribute access.
+
+    Taken from `Celery <http://www.celeryproject.org/>`_
+    (`celery.datastructures.AttributeDictMixin`).
     """
-    pass
-
-
-class Config(object):
-    """
-    Read the configuration file and provide access to its values.
-    """
-    def __init__(self, filename=None, **values):
-        """
-        Initialise the class with variables read from the configuration
-        file.
-
-        By default, configuration values are read from two locations, in this
-        order:
-
-        1. `SYSTEM_CONFIGURATION`
-        2. `USER_CONFIGURATION`
-
-        If both files exist, values defined in the second overwrite values
-        defined in the first.
-
-        An exception to this system is when the optional `filename` argument
-        is set. In that case, the locations listed above are ignored and the
-        configuration is read from `filename`.
-
-        Additionally, any keyword arguments passed to :class:`Config` other
-        than `filename` will overwrite values read from a file.
-
-        :arg filename: Optional filename to read configuration from. If
-            present, this overrides automatic detection of configuration file
-            location.
-        :type filename: str
-
-        :raise ConfigurationError: If configuration could not be read.
-        """
-        config = {}
-
-        if filename:
-            config = self._load_config(filename)
-        else:
-            if os.path.isfile(SYSTEM_CONFIGURATION):
-                config = self._load_config(SYSTEM_CONFIGURATION)
-            if os.path.isfile(USER_CONFIGURATION):
-                user_config = self._load_config(USER_CONFIGURATION)
-                if config:
-                    config.merge(user_config)
-                else:
-                    config = user_config
-
-        # Any not-None keyword arguments overwrite existing values.
-        overwrite = {key: value for key, value in values.items()
-                     if value is not None}
-        if config:
-            config.merge(overwrite)
-        else:
-            config = ConfigObj(overwrite)
-
-        self.api_root = config.get('api_root', DEFAULT_API_ROOT)
-        self.token = config.get('token')
-        self.poll_sleep = int(config.get('poll_sleep', DEFAULT_POLL_SLEEP))
-        self.max_polls = int(config.get('max_polls', DEFAULT_MAX_POLLS))
-
-    def _load_config(self, filename):
-        """
-        Create a `ConfigObj` instance from the configuration in `filename`.
-        """
+    def __getattr__(self, k):
         try:
-            return ConfigObj(filename)
-        except IOError:
-            raise ConfigurationError('Could not open configuration file "%s"'
-                                     % filename)
-        except SyntaxError:
-            raise ConfigurationError('Could not parse configuration file "%s"'
-                                     % filename)
+            return self[k]
+        except KeyError:
+            raise AttributeError(
+                '{0!r} object has no attribute {1!r}'.format(
+                    type(self).__name__, k))
 
-    def get(self, key, default=None):
-        """
-        Return the value for `key` if `key` is in the configuration, else
-        `default`. If `default` is not given, it defaults to ``None``.
-        """
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            return default
+    def __setattr__(self, key, value):
+        self[key] = value
+
+
+class Config(flask.config.Config, AttributeDictMixin):
+    """
+    Dictionary with some extra ways to fill it from files or special
+    dictionaries (see `flask.config.Config`) and attribute access.
+
+    Initialized with :mod:`manwe.default_config`.
+    """
+    def __init__(self):
+        # We fix the root_path argument to the current working directory.
+        super(Config, self).__init__(os.getcwd())
+        self.from_object(default_config)
