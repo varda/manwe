@@ -235,9 +235,5 @@ class Session(object):
         return self._collections[key](self, *args, **kwargs)
 
     def _create_resource(self, key, *args, **kwargs):
-        print '>>>>>>>>>>>>>>>>>>>'
-        print key
-        print self._collections[key]
-        print self._collections[key].resource_class
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
