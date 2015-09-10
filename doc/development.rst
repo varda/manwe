@@ -22,7 +22,13 @@ In general, try to follow the `PEP 8`_ guidelines for Python code and `PEP
 Unit tests
 ----------
 
-To run the unit tests with `nose`_, just run ``nosetests -v``.
+To run the unit tests with `pytest`_, just run::
+
+  $ py.test
+
+The tests use `Varda <https://github.com/varda/varda>`_, so you need to have
+that installed (just the Python package, no configuration needed) along with
+its dependencies.
 
 
 Versioning

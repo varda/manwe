@@ -3,63 +3,76 @@ Unit tests for :mod:`manwe.session`.
 """
 
 
-import collections
+import pytest
+import varda
+import varda.models
 
-import json
-from mock import Mock, patch
-from nose.tools import *
-import requests
-
-from manwe import config, session
+import utils
 
 
-class TestSession():
-    """
-    Test :mod:`manwe.session`.
-    """
-    def test_add_sample(self):
+class TestSession(utils.TestEnvironment):
+    def test_get_user(self):
         """
-        Adding a sample causes the correct POST request to be sent to the
-        server.
+        Get a user.
         """
-        mock_response = Mock(requests.Response, status_code=200,
-                             headers={'Location': '/'})
-        mock_response.json.return_value = collections.defaultdict(str)
+        admin_uri = self.uri_for_user(name='Administrator')
+        assert self.session.user(admin_uri).name == 'Administrator'
 
-        s = session.Session(config='/dev/null')
-        s._cached_uris = {'sample_collection': 'http://samples/'}
-
-        with patch.object(requests, 'request') as mock_request:
-            mock_request.return_value = mock_response
-            s.add_sample('test sample', pool_size=5, public=True)
-            mock_request.assert_any_call('POST', 'http://samples/',
-                                         data=json.dumps({'name': 'test sample',
-                                                          'pool_size': 5,
-                                                          'coverage_profile': True,
-                                                          'public': True}),
-                                         headers={'Content-Type': 'application/json',
-                                                  'Accept-Version': session.ACCEPT_VERSION})
-
-    def test_add_data_source(self):
+    def test_create_sample(self):
         """
-        Adding a data source causes the correct POST request to be sent to the
-        server.
+        Create a sample.
         """
-        mock_response = Mock(requests.Response, status_code=200,
-                             headers={'Location': '/'})
-        mock_response.json.return_value = collections.defaultdict(str)
+        sample = self.session.create_sample('test sample', pool_size=5, public=True)
+        assert sample.name == 'test sample'
 
-        s = session.Session(config='/dev/null')
-        s._cached_uris = {'data_source_collection': 'http://data_sources/'}
+        sample_uri = self.uri_for_sample(name='test sample')
+        assert sample.uri == sample_uri
 
-        test_data = 'test data'
+    def test_create_data_source(self):
+        """
+        Create a data source.
+        """
+        data_source = self.session.create_data_source('test data source', 'vcf', data='test_data')
 
-        with patch.object(requests, 'request') as mock_request:
-            mock_request.return_value = mock_response
-            s.add_data_source('test data source', 'vcf', data=test_data)
-            mock_request.assert_any_call('POST', 'http://data_sources/',
-                                         data={'name': 'test data source',
-                                               'filetype': 'vcf',
-                                               'gzipped': False},
-                                         files={'data': test_data},
-                                         headers={'Accept-Version': session.ACCEPT_VERSION})
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        assert data_source.uri == data_source_uri
+
+    def test_samples_by_user(self):
+        """
+        Filter sample collection by user.
+        """
+        a = varda.models.User('User A', 'a')
+        b = varda.models.User('User B', 'b')
+
+        samples_a = [varda.models.Sample(a, 'Sample A %d' % i)
+                     for i in range(50)]
+        samples_b = [varda.models.Sample(b, 'Sample B %d' % i)
+                     for i in range(50)]
+
+        varda.db.session.add_all(samples_a + samples_b)
+        varda.db.session.commit()
+
+        admin = self.session.user(self.uri_for_user(name='Administrator'))
+        a = self.session.user(self.uri_for_user(name='User A'))
+        b = self.session.user(self.uri_for_user(name='User B'))
+
+        samples = self.session.samples()
+        assert samples.size == 100
+
+        samples_a = self.session.samples(user=a)
+        assert samples_a.size == 50
+        assert samples_a.user == a
+        assert next(samples_a).user == a
+        assert next(samples_a).name.startswith('Sample A ')
+
+        samples_b = self.session.samples(user=b)
+        assert samples_b.size == 50
+        assert samples_b.user == b
+        assert next(samples_b).user == b
+        assert next(samples_b).name.startswith('Sample B ')
+
+        samples_admin = self.session.samples(user=admin)
+        assert samples_admin.size == 0
+        assert samples_admin.user == admin
+        with pytest.raises(StopIteration):
+            next(samples_admin)

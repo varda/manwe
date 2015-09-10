@@ -58,7 +58,7 @@ class ResourceJSONEncoder(json.JSONEncoder):
     Use like this::
 
         >>> import json
-        >>> user = session.add_user('test', '***')
+        >>> user = session.create_user('test', '***')
         >>> json.dumps(user, cls=ResourceJSONEncoder)
         '/users/3'
 
@@ -77,13 +77,18 @@ class _Resource(object):
 
     # Key for this resource type is used in API response objects as index for
     # the resource definition and with the ``_collection`` suffix as index in
-    # `Session.uris` for the URI to this resources' collection which is the
-    # endpoint for listing and creating resources.
+    # `Session.endpoints` for the URI to this resources' collection which is
+    # the endpoint for listing and creating resources.
     # We can build all this on a single value in `key` because the server API
     # is consistent in using conventions for naming things.
     #: Key for this resource type.
     key = None
 
+    # Todo: I think it would be nice to have field classes (`Field`,
+    #     `DateField`, etc) with kwarg `mutable=True` instead of the less
+    #     flexible field name tuples `_mutable` and `_immutable`. We could
+    #     generalize getters and setters of more complex types without having
+    #     to write them in the subclasses.
     # Note: The `_mutable` tuple must always contain at least ``uri``.
     # Note: Any structured fields (such as lists and dicts) defined in
     #     `_mutable`, won't just work with the getters and setters defined
@@ -148,11 +153,13 @@ class _Resource(object):
         """
         Create a new resource on the server and return a representation for
         it.
+
+        Every subclass should override this with an informative docstring.
         """
         kwargs = {'data': data}
         if files:
             kwargs.update(files=files)
-        response = session.post(session.uris[cls.key + '_collection'],
+        response = session.post(session.endpoints[cls.key + '_collection'],
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
@@ -168,6 +175,10 @@ class _Resource(object):
     # Todo: Have a more informative `__repr__` implementation.
     def __str__(self):
         return self._fields['uri']
+
+    def __eq__(self, other):
+        return (self._fields['uri'] and other._fields['uri'] and
+                self._fields['uri'] == other._fields['uri'])
 
     @property
     def dirty(self):
@@ -252,7 +263,7 @@ class _ResourceCollection(object):
             'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
         try:
             response = self.session.get(
-                uri=self.session.uris[self.key + '_collection'],
+                uri=self.session.endpoints[self.key + '_collection'],
                 data={arg: value for arg, value in self._args.items()
                       if value is not None},
                 headers={'Range': range_.to_header()})
@@ -300,7 +311,18 @@ class Annotation(_TaskedResource):
     def create(cls, session, data_source, global_frequency=True,
                sample_frequency=None):
         """
-        Create a new annotation and return a representation for it.
+        Create an annotation resource.
+
+        :arg data_source: Data source to annotate.
+        :type data_source: :class:`resources.DataSource`
+        :arg global_frequency: Whether or not global frequences must be
+          calculated.
+        :type global_frequency: bool
+        :arg sample_frequency:
+        :type sample_frequency: list(:class:`resources.Sample`)
+
+        :return: An annotation resource.
+        :rtype: :class:`resources.Annotation`
         """
         sample_frequency = sample_frequency or []
         data = {'data_source': data_source,
@@ -337,7 +359,15 @@ class Coverage(_TaskedResource):
     @classmethod
     def create(cls, session, sample, data_source):
         """
-        Create a new coverage and return a representation for it.
+        Create a coverage resource.
+
+        :arg sample: Sample the coverage resource is part of.
+        :type sample: :class:`resources.Sample`
+        :arg data_source: Data source for the coverage resource.
+        :type data_source: :class:`resources.DataSource`
+
+        :return: A coverage resource.
+        :rtype: :class:`resources.Coverage`
         """
         data = {'sample': sample,
                 'data_source': data_source}
@@ -374,7 +404,19 @@ class DataSource(_Resource):
     def create(cls, session, name, filetype, gzipped=False, data=None,
                local_file=None):
         """
-        Create a new data source and return a representation for it.
+        Create a data source resource.
+
+        :arg str name: Human readable data source name.
+        :arg str filetype: Data filetype. Possible values are ``bed``, ``vcf``,
+          and ``csv``.
+        :arg bool gzipped: Whether or not the data is compressed using gzip.
+        :arg data: Data blob.
+        :type data: file-like object
+        :arg str local_file: A filename on the server filesystem. This can be
+          used instead of `data`.
+
+        :return: A data source resource.
+        :rtype: :class:`resources.DataSource`
         """
         post_data = {'name': name,
                      'filetype': filetype,
@@ -427,7 +469,17 @@ class Sample(_Resource):
     def create(cls, session, name, pool_size=1, coverage_profile=True,
                public=False, notes=None):
         """
-        Create a new sample and return a representation for it.
+        Create a sample resource.
+
+        :arg str name: Human readable sample name.
+        :arg int pool_size: Number of individuals in the sample.
+        :arg bool coverage_profile: Whether or not the sample has a coverage
+          profile.
+        :arg bool public: Whether or not this sample is public.
+        :arg str notes: Human readable notes in Markdown format.
+
+        :return: A sample resource.
+        :rtype: :class:`resources.Sample`
         """
         data = {'name': name,
                 'pool_size': pool_size,
@@ -470,7 +522,17 @@ class User(_Resource):
     def create(cls, session, login, password, name=None, email=None,
                roles=None):
         """
-        Create a new user and return a representation for it.
+        Create a user resource.
+
+        :arg str login: Login name used for authentication.
+        :arg str password: Password used for authentication.
+        :arg str name: Human readable user name.
+        :arg str email: User e-mail address.
+        :arg roles: Roles for this user. Possible values are ``admin``,
+          ``importer``, ``anotator``, and ``trader``.
+
+        :return: A user resource.
+        :rtype: :class:`resources.User`
         """
         data = {'login': login,
                 'password': password,
@@ -526,7 +588,15 @@ class Variant(_Resource):
     @classmethod
     def create(cls, session, chromosome, position, reference='', observed=''):
         """
-        Create a new variant and return a representation for it.
+        Create a variant resource.
+
+        :arg str chromosome: Chromosome name.
+        :arg int position: Position of variant on `chromosome`.
+        :arg str reference: Reference allele.
+        :arg str observed: Observed allele.
+
+        :return: A variant resource.
+        :rtype: :class:`resources.Variant`
         """
         data = {'chromosome': chromosome,
                 'position': position,
@@ -554,7 +624,21 @@ class Variation(_TaskedResource):
     def create(cls, session, sample, data_source, skip_filtered=True,
                use_genotypes=True, prefer_genotype_likelihoods=False):
         """
-        Create a new variation and return a representation for it.
+        Create a variation resource.
+
+        :arg sample: Sample the variation resource is part of.
+        :type sample: :class:`resources.Sample`
+        :arg data_source: Data source for the variation resource.
+        :type data_source: :class:`resources.DataSource`
+        :arg bool skip_filtered: Discard entries in `data_source` marked as
+          filtered.
+        :arg bool use_genotypes: Use per-sample genotype information from
+          `data_source`.
+        :arg bool prefer_genotype_likelihoods: Prefer using genotype
+          likelihoods from `data_source` instead of concrete genotypes.
+
+        :return: A variation resource.
+        :rtype: :class:`resources.Variation`
         """
         data = {'sample': sample,
                 'data_source': data_source,

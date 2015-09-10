@@ -11,13 +11,21 @@ Todo: Move some of the docstring from the _old_population_study.py file here.
 
 
 import argparse
+import os
 import re
 import sys
 
-from . import config
+from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
 from .session import Session
+
+
+SYSTEM_CONFIGURATION = '/etc/manwe/config'
+USER_CONFIGURATION = os.path.join(
+    os.environ.get('XDG_CONFIG_HOME', None) or
+    os.path.join(os.path.expanduser('~'), '.config'),
+    'manwe', 'config')
 
 
 def log(message):
@@ -34,7 +42,7 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
                   vcf_files=None, bed_files=None, data_uploaded=False,
                   prefer_genotype_likelihoods=False, config=None):
     """
-    Add sample and import variantion and coverage files.
+    Add sample and import variation and coverage files.
     """
     vcf_files = vcf_files or []
     bed_files = bed_files or []
@@ -55,32 +63,32 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
 
     session = Session(config=config)
 
-    sample = session.add_sample(name, pool_size=pool_size,
-                                coverage_profile=not no_coverage_profile,
-                                public=public)
+    sample = session.create_sample(name, pool_size=pool_size,
+                                   coverage_profile=not no_coverage_profile,
+                                   public=public)
 
     log('Added sample: %s' % sample.uri)
 
     for source, filename in vcf_sources:
-        data_source = session.add_data_source(
+        data_source = session.create_data_source(
             'Variants from file "%s"' % filename,
             filetype='vcf',
             gzipped=filename.endswith('.gz'),
             **source)
         log('Added data source: %s' % data_source.uri)
-        variation = session.add_variation(
+        variation = session.create_variation(
             sample, data_source,
             prefer_genotype_likelihoods=prefer_genotype_likelihoods)
         log('Started variation import: %s' % variation.uri)
 
     for source, filename in bed_sources:
-        data_source = session.add_data_source(
+        data_source = session.create_data_source(
             'Regions from file "%s"' % filename,
             filetype='bed',
             gzipped=filename.endswith('.gz'),
             **source)
         log('Added data source: %s' % data_source.uri)
-        coverage = session.add_coverage(sample, data_source)
+        coverage = session.create_coverage(sample, data_source)
         log('Started coverage import: %s' % coverage.uri)
 
 
@@ -98,13 +106,13 @@ def import_variation(uri, vcf_file, data_uploaded=False,
     session = Session(config=config)
     sample = session.sample(uri)
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
         filetype='vcf',
         gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    variation = session.add_variation(
+    variation = session.create_variation(
         sample, data_source,
         prefer_genotype_likelihoods=prefer_genotype_likelihoods)
     log('Started variation import: %s' % variation.uri)
@@ -123,13 +131,13 @@ def import_coverage(uri, bed_file, data_uploaded=False, config=None):
     session = Session(config=config)
     sample = session.sample(uri)
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
         filetype='bed',
         gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    coverage = session.add_coverage(sample, data_source)
+    coverage = session.create_coverage(sample, data_source)
     log('Started coverage import: %s' % coverage.uri)
 
 
@@ -191,13 +199,13 @@ def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
         filetype='vcf',
         gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    annotation = session.add_annotation(
+    annotation = session.create_annotation(
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
@@ -220,13 +228,13 @@ def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
         filetype='bed',
         gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    annotation = session.add_annotation(
+    annotation = session.create_annotation(
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
@@ -247,7 +255,7 @@ def add_user(login, password, name=None, config=None, **kwargs):
     roles = ('admin', 'importer', 'annotator', 'trader')
     selected_roles = [role for role in roles if kwargs.get('role_' + role)]
 
-    user = session.add_user(login, password, name=name, roles=selected_roles)
+    user = session.create_user(login, password, name=name, roles=selected_roles)
 
     log('Added user: %s' % user.uri)
 
@@ -302,6 +310,46 @@ def data_source_data(uri, config=None):
 
     for chunk in data_source.data:
         sys.stdout.write(chunk)
+
+
+def create_config(filename=None):
+    """
+    Create a Manwë configuration object.
+
+    Configuration values are initialized from the :mod:`manwe.default_config`
+    module.
+
+    By default, configuration values are then read from two locations, in this
+    order:
+
+    1. `SYSTEM_CONFIGURATION`
+    2. `USER_CONFIGURATION`
+
+    If both files exist, values defined in the second overwrite values defined
+    in the first.
+
+    An exception to this is when the optional `filename` argument is set. In
+    that case, the locations listed above are ignored and the configuration is
+    read from `filename`.
+
+    :arg filename: Optional filename to read configuration from. If present,
+      this overrides automatic detection of configuration file location.
+    :type filename: str
+
+    :return: Manwë configuration object.
+    :rtype: config.Config
+    """
+    config = Config()
+
+    if filename:
+        config.from_pyfile(filename)
+    else:
+        if os.path.isfile(SYSTEM_CONFIGURATION):
+            config.from_pyfile(SYSTEM_CONFIGURATION)
+        if os.path.isfile(USER_CONFIGURATION):
+            config.from_pyfile(USER_CONFIGURATION)
+
+    return config
 
 
 def main():
@@ -457,12 +505,13 @@ def main():
     args = parser.parse_args()
 
     try:
-        args.func(**{k: v for k, v in vars(args).items()
-                     if k not in ('func', 'subcommand')})
+        args.func(config=create_config(args.config),
+                  **{k: v for k, v in vars(args).items()
+                     if k not in ('config', 'func', 'subcommand')})
     except UnauthorizedError:
         abort('Authentication is needed, please make sure you have the '
-              'correct login and password defined in "%s"'
-              % (args.config or config.USER_CONFIGURATION))
+              'correct authentication token defined in "%s"'
+              % (args.config or USER_CONFIGURATION))
     except ForbiddenError:
         abort('Sorry, you do not have permission')
     except BadRequestError as (code, message):

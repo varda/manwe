@@ -34,7 +34,7 @@ class Session(object):
     Example session::
 
         >>> session = Session()
-        >>> sample = session.add_sample('Test')
+        >>> sample = session.create_sample('Test')
         >>> sample.uri
         '/samples/1'
         >>> sample.dirty
@@ -59,13 +59,25 @@ class Session(object):
         """
         Create a `Session`.
 
-        :arg str config: Configuration filename.
-        :arg logging.LOG_LEVEL log_level: Control the level of log messages
-            you will see. Use `log_level=logging.DEBUG` to troubleshoot.
+        :arg api_root: Varda API root endpoint.
+        :type api_root: str
+        :arg token: Varda API authentication token.
+        :type token: str
+        :arg config: Manwë configuration object (`api_root` and `token` take
+           precedence).
+        :type config: config.Config
+        :arg log_level: Control the level of log messages you will see. Use
+          `log_level=logging.DEBUG` to troubleshoot.
+        :type log_level: logging.LOG_LEVEL
         """
-        self.config = Config(filename=config, api_root=api_root, token=token)
+        self.config = config or Config()
+
+        if api_root:
+            self.config.API_ROOT = api_root
+        if token:
+            self.config.TOKEN = token
+
         self.set_log_level(log_level)
-        self._cached_uris = None
         self._api_errors = collections.defaultdict(
             lambda: ApiError, {400: BadRequestError,
                                401: UnauthorizedError,
@@ -73,6 +85,10 @@ class Session(object):
                                404: NotFoundError,
                                406: NotAcceptableError,
                                416: UnsatisfiableRangeError})
+        self.endpoints = self._lookup_endpoints()
+
+        for key in self._collections:
+            self._register_calls(key)
 
     def set_log_level(self, log_level):
         """
@@ -80,25 +96,68 @@ class Session(object):
         """
         logger.setLevel(log_level)
 
-    @property
-    def uris(self):
+    def _lookup_endpoints(self):
         """
         Dictionary mapping API endpoints to their URIs.
         """
-        if not self._cached_uris:
-            keys = {key + '_collection' for key in self._collections}
-            keys.add('authentication')
-            keys.add('genome')
-            response = self.get(self.config.api_root).json()
-            self._cached_uris = {key: response['root'][key]['uri']
-                                 for key in keys}
-        return self._cached_uris
+        # TODO: Is API root actually a singleton resource and should we
+        #   model it as such and query it as such?
+        keys = {key + '_collection' for key in self._collections}
+        keys.add('authentication')
+        keys.add('genome')
+        response = self.get(self.config.API_ROOT).json()
+        return {key: response['root'][key]['uri'] for key in keys}
+
+    def _register_calls(self, key):
+        """
+        Set API call methods on this session.
+        """
+        # We explicitely register these methods instead of dynamic dispatching
+        # with `__getattr__`. This enables tab completion and `dir()` without
+        # having to implement `__dir__`. We can also attach docstrings this
+        # way.
+        collection_class = self._collections[key]
+
+        def get_resource(uri):
+            """
+            Get a {key} resource.
+
+            :arg str uri: URI for the {key} to retrieve.
+            :return: A {key} resource.
+            :rtype: :class:`resources.{collection_class.resource_class.__name__}`
+            """
+            return self._get_resource(key, uri)
+        get_resource.__doc__ = get_resource.__doc__.format(
+            key=key, collection_class=collection_class)
+
+        def get_collection(*args, **kwargs):
+            """
+            Get a {key} resource collection.
+
+            The collection can be filtered by setting any of the following
+            keyword args: {accepted_args}
+
+            :return: A {key} resource collection.
+            :rtype: :class:`resources.{collection_class.__name__}`
+            """
+            return self._get_collection(key, *args, **kwargs)
+        get_collection.__doc__ = get_collection.__doc__.format(
+            key=key, collection_class=collection_class,
+            accepted_args=', '.join(collection_class._accepted_args) or 'none')
+
+        def create_resource(*args, **kwargs):
+            return self._create_resource(key, *args, **kwargs)
+        create_resource.__doc__ = collection_class.resource_class.create.__doc__
+
+        setattr(self, key, get_resource)
+        setattr(self, '%ss' % key, get_collection)
+        setattr(self, 'create_%s' % key, create_resource)
 
     def _qualified_uri(self, uri):
         if uri.startswith('/'):
-            if self.config.api_root.endswith('/'):
-                return self.config.api_root + uri[1:]
-            return self.config.api_root + uri
+            if self.config.API_ROOT.endswith('/'):
+                return self.config.API_ROOT + uri[1:]
+            return self.config.API_ROOT + uri
         return uri
 
     def get(self, *args, **kwargs):
@@ -137,9 +196,9 @@ class Session(object):
                                         cls=resources.ResourceJSONEncoder)
             headers['Content-Type'] = 'application/json'
         headers['Accept-Version'] = ACCEPT_VERSION
-        #kwargs['auth'] = self.config.user, self.config.password
-        if self.config.token:
-            headers['Authorization'] = 'Token ' + self.config.token
+        #kwargs['auth'] = self.config.USER, self.config.PASSWORD
+        if self.config.TOKEN:
+            headers['Authorization'] = 'Token ' + self.config.TOKEN
         try:
             response = requests.request(method, uri, headers=headers, **kwargs)
         except requests.RequestException as e:
@@ -174,15 +233,10 @@ class Session(object):
     def _get_collection(self, key, *args, **kwargs):
         return self._collections[key](self, *args, **kwargs)
 
-    def _add_resource(self, key, *args, **kwargs):
+    def _create_resource(self, key, *args, **kwargs):
+        print '>>>>>>>>>>>>>>>>>>>'
+        print key
+        print self._collections[key]
+        print self._collections[key].resource_class
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
-
-    def __getattr__(self, name):
-        if name in self._collections:
-            return functools.partial(self._get_resource, name)
-        if name.endswith('s') and name[:-1] in self._collections:
-            return functools.partial(self._get_collection, name[:-1])
-        if name.startswith('add_') and name[4:] in self._collections:
-            return functools.partial(self._add_resource, name[4:])
-        raise AttributeError
