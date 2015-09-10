@@ -176,6 +176,10 @@ class _Resource(object):
     def __str__(self):
         return self._fields['uri']
 
+    def __eq__(self, other):
+        return (self._fields['uri'] and other._fields['uri'] and
+                self._fields['uri'] == other._fields['uri'])
+
     @property
     def dirty(self):
         """

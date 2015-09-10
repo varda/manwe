@@ -275,6 +275,54 @@ class TestUser(object):
         assert user.dirty
         assert user.roles == {'importer', 'annotator'}
 
+    def test_user_eq(self):
+        """
+        Compare two equal users.
+        """
+        fields_a = dict(uri='/users/4', login='test')
+        fields_b = dict(uri='/users/4', login='test')
+
+        user_a = resources.User(None, fields_a)
+        user_b = resources.User(None, fields_b)
+
+        assert user_a == user_b
+
+    def test_user_eq_by_uri(self):
+        """
+        Compare two users with equal URIs.
+        """
+        fields_a = dict(uri='/users/4', login='test a')
+        fields_b = dict(uri='/users/4', login='test b')
+
+        user_a = resources.User(None, fields_a)
+        user_b = resources.User(None, fields_b)
+
+        assert user_a == user_b
+
+    def test_user_neq(self):
+        """
+        Compare two inequal users.
+        """
+        fields_a = dict(uri='/users/4', login='test a')
+        fields_b = dict(uri='/users/6', login='test b')
+
+        user_a = resources.User(None, fields_a)
+        user_b = resources.User(None, fields_b)
+
+        assert user_a != user_b
+
+    def test_user_neq_by_uri(self):
+        """
+        Compare two users with inequal URIs.
+        """
+        fields_a = dict(uri='/users/4', login='test a')
+        fields_b = dict(uri='/users/6', login='test a')
+
+        user_a = resources.User(None, fields_a)
+        user_b = resources.User(None, fields_b)
+
+        assert user_a != user_b
+
 
 class TestVariant(object):
     def test_read_variant(self):
