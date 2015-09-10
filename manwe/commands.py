@@ -38,12 +38,14 @@ def abort(message=None):
     sys.exit(1)
 
 
-def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
-                  vcf_files=None, bed_files=None, data_uploaded=False,
-                  prefer_genotype_likelihoods=False, config=None):
+def import_sample(name, groups=None, pool_size=1, public=False,
+                  no_coverage_profile=False, vcf_files=None, bed_files=None,
+                  data_uploaded=False, prefer_genotype_likelihoods=False,
+                  config=None):
     """
     Add sample and import variation and coverage files.
     """
+    groups = groups or []
     vcf_files = vcf_files or []
     bed_files = bed_files or []
 
@@ -63,7 +65,8 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
 
     session = Session(config=config)
 
-    sample = session.create_sample(name, pool_size=pool_size,
+    groups = [session.group(uri) for uri in groups]
+    sample = session.create_sample(name, groups=groups, pool_size=pool_size,
                                    coverage_profile=not no_coverage_profile,
                                    public=public)
 
@@ -171,6 +174,11 @@ def show_sample(uri, config=None):
     print 'User:        %s' % sample.user.uri
     print 'Name:        %s' % sample.user.name
 
+    for group in sample.groups:
+        print
+        print 'Group:       %s' % group.uri
+        print 'Name:        %s' % group.name
+
     for variation in session.variations(sample=sample):
         print
         print 'Variation:   %s' % variation.uri
@@ -238,6 +246,17 @@ def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
+
+
+def add_group(name, config=None):
+    """
+    Add a sample group.
+    """
+    session = Session(config=config)
+
+    group = session.create_group(name)
+
+    log('Added group: %s' % group.uri)
 
 
 def add_user(login, password, name=None, config=None, **kwargs):
@@ -372,6 +391,7 @@ def main():
                               parents=[config_parser])
     p.set_defaults(func=import_sample)
     p.add_argument('name', metavar='NAME', type=str, help='sample name')
+    p.add_argument('--groups', metavar='URI', nargs='+', help='sample groups')
     p.add_argument('--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
                    required=True,
                    help='file in VCF 4.1 format to import variants from')
@@ -464,6 +484,12 @@ def main():
     p.add_argument('-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
                    nargs='+', required=False, default=[],
                    help='annotate with frequencies over these samples')
+
+    p = subparsers.add_parser('add-group', help='add new sample group',
+                              description=add_group.__doc__.split('\n\n')[0],
+                              parents=[config_parser])
+    p.set_defaults(func=add_group)
+    p.add_argument('name', metavar='NAME', type=str, help='group name')
 
     p = subparsers.add_parser('add-user', help='add new API user',
                               description=add_user.__doc__.split('\n\n')[0],
