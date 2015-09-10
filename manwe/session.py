@@ -34,7 +34,7 @@ class Session(object):
     Example session::
 
         >>> session = Session()
-        >>> sample = session.add_sample('Test')
+        >>> sample = session.create_sample('Test')
         >>> sample.uri
         '/samples/1'
         >>> sample.dirty
@@ -87,6 +87,9 @@ class Session(object):
                                416: UnsatisfiableRangeError})
         self.endpoints = self._lookup_endpoints()
 
+        for key in self._collections:
+            self._register_calls(key)
+
     def set_log_level(self, log_level):
         """
         Control the level of log messages you will see.
@@ -104,6 +107,51 @@ class Session(object):
         keys.add('genome')
         response = self.get(self.config.API_ROOT).json()
         return {key: response['root'][key]['uri'] for key in keys}
+
+    def _register_calls(self, key):
+        """
+        Set API call methods on this session.
+        """
+        # We explicitely register these methods instead of dynamic dispatching
+        # with `__getattr__`. This enables tab completion and `dir()` without
+        # having to implement `__dir__`. We can also attach docstrings this
+        # way.
+        collection_class = self._collections[key]
+
+        def get_resource(uri):
+            """
+            Get a {key} resource.
+
+            :arg str uri: URI for the {key} to retrieve.
+            :return: A {key} resource.
+            :rtype: :class:`resources.{collection_class.resource_class.__name__}`
+            """
+            return self._get_resource(key, uri)
+        get_resource.__doc__ = get_resource.__doc__.format(
+            key=key, collection_class=collection_class)
+
+        def get_collection(*args, **kwargs):
+            """
+            Get a {key} resource collection.
+
+            The collection can be filtered by setting any of the following
+            keyword args: {accepted_args}
+
+            :return: A {key} resource collection.
+            :rtype: :class:`resources.{collection_class.__name__}`
+            """
+            return self._get_collection(key, *args, **kwargs)
+        get_collection.__doc__ = get_collection.__doc__.format(
+            key=key, collection_class=collection_class,
+            accepted_args=', '.join(collection_class._accepted_args) or 'none')
+
+        def create_resource(*args, **kwargs):
+            return self._create_resource(key, *args, **kwargs)
+        create_resource.__doc__ = collection_class.resource_class.create.__doc__
+
+        setattr(self, key, get_resource)
+        setattr(self, '%ss' % key, get_collection)
+        setattr(self, 'create_%s' % key, create_resource)
 
     def _qualified_uri(self, uri):
         if uri.startswith('/'):
@@ -185,15 +233,10 @@ class Session(object):
     def _get_collection(self, key, *args, **kwargs):
         return self._collections[key](self, *args, **kwargs)
 
-    def _add_resource(self, key, *args, **kwargs):
+    def _create_resource(self, key, *args, **kwargs):
+        print '>>>>>>>>>>>>>>>>>>>'
+        print key
+        print self._collections[key]
+        print self._collections[key].resource_class
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
-
-    def __getattr__(self, name):
-        if name in self._collections:
-            return functools.partial(self._get_resource, name)
-        if name.endswith('s') and name[:-1] in self._collections:
-            return functools.partial(self._get_collection, name[:-1])
-        if name.startswith('add_') and name[4:] in self._collections:
-            return functools.partial(self._add_resource, name[4:])
-        raise AttributeError

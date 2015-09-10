@@ -42,7 +42,7 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
                   vcf_files=None, bed_files=None, data_uploaded=False,
                   prefer_genotype_likelihoods=False, config=None):
     """
-    Add sample and import variantion and coverage files.
+    Add sample and import variation and coverage files.
     """
     vcf_files = vcf_files or []
     bed_files = bed_files or []
@@ -63,32 +63,32 @@ def import_sample(name, pool_size=1, public=False, no_coverage_profile=False,
 
     session = Session(config=config)
 
-    sample = session.add_sample(name, pool_size=pool_size,
-                                coverage_profile=not no_coverage_profile,
-                                public=public)
+    sample = session.create_sample(name, pool_size=pool_size,
+                                   coverage_profile=not no_coverage_profile,
+                                   public=public)
 
     log('Added sample: %s' % sample.uri)
 
     for source, filename in vcf_sources:
-        data_source = session.add_data_source(
+        data_source = session.create_data_source(
             'Variants from file "%s"' % filename,
             filetype='vcf',
             gzipped=filename.endswith('.gz'),
             **source)
         log('Added data source: %s' % data_source.uri)
-        variation = session.add_variation(
+        variation = session.create_variation(
             sample, data_source,
             prefer_genotype_likelihoods=prefer_genotype_likelihoods)
         log('Started variation import: %s' % variation.uri)
 
     for source, filename in bed_sources:
-        data_source = session.add_data_source(
+        data_source = session.create_data_source(
             'Regions from file "%s"' % filename,
             filetype='bed',
             gzipped=filename.endswith('.gz'),
             **source)
         log('Added data source: %s' % data_source.uri)
-        coverage = session.add_coverage(sample, data_source)
+        coverage = session.create_coverage(sample, data_source)
         log('Started coverage import: %s' % coverage.uri)
 
 
@@ -106,13 +106,13 @@ def import_variation(uri, vcf_file, data_uploaded=False,
     session = Session(config=config)
     sample = session.sample(uri)
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
         filetype='vcf',
         gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    variation = session.add_variation(
+    variation = session.create_variation(
         sample, data_source,
         prefer_genotype_likelihoods=prefer_genotype_likelihoods)
     log('Started variation import: %s' % variation.uri)
@@ -131,13 +131,13 @@ def import_coverage(uri, bed_file, data_uploaded=False, config=None):
     session = Session(config=config)
     sample = session.sample(uri)
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
         filetype='bed',
         gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    coverage = session.add_coverage(sample, data_source)
+    coverage = session.create_coverage(sample, data_source)
     log('Started coverage import: %s' % coverage.uri)
 
 
@@ -199,13 +199,13 @@ def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
         filetype='vcf',
         gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    annotation = session.add_annotation(
+    annotation = session.create_annotation(
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
@@ -228,13 +228,13 @@ def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
-    data_source = session.add_data_source(
+    data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
         filetype='bed',
         gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
-    annotation = session.add_annotation(
+    annotation = session.create_annotation(
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
@@ -255,7 +255,7 @@ def add_user(login, password, name=None, config=None, **kwargs):
     roles = ('admin', 'importer', 'annotator', 'trader')
     selected_roles = [role for role in roles if kwargs.get('role_' + role)]
 
-    user = session.add_user(login, password, name=name, roles=selected_roles)
+    user = session.create_user(login, password, name=name, roles=selected_roles)
 
     log('Added user: %s' % user.uri)
 
