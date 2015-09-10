@@ -77,8 +77,8 @@ class _Resource(object):
 
     # Key for this resource type is used in API response objects as index for
     # the resource definition and with the ``_collection`` suffix as index in
-    # `Session.uris` for the URI to this resources' collection which is the
-    # endpoint for listing and creating resources.
+    # `Session.endpoints` for the URI to this resources' collection which is
+    # the endpoint for listing and creating resources.
     # We can build all this on a single value in `key` because the server API
     # is consistent in using conventions for naming things.
     #: Key for this resource type.
@@ -152,7 +152,7 @@ class _Resource(object):
         kwargs = {'data': data}
         if files:
             kwargs.update(files=files)
-        response = session.post(session.uris[cls.key + '_collection'],
+        response = session.post(session.endpoints[cls.key + '_collection'],
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
@@ -252,7 +252,7 @@ class _ResourceCollection(object):
             'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
         try:
             response = self.session.get(
-                uri=self.session.uris[self.key + '_collection'],
+                uri=self.session.endpoints[self.key + '_collection'],
                 data={arg: value for arg, value in self._args.items()
                       if value is not None},
                 headers={'Range': range_.to_header()})

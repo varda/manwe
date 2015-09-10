@@ -78,7 +78,6 @@ class Session(object):
             self.config.TOKEN = token
 
         self.set_log_level(log_level)
-        self._cached_uris = None
         self._api_errors = collections.defaultdict(
             lambda: ApiError, {400: BadRequestError,
                                401: UnauthorizedError,
@@ -86,6 +85,7 @@ class Session(object):
                                404: NotFoundError,
                                406: NotAcceptableError,
                                416: UnsatisfiableRangeError})
+        self.endpoints = self._lookup_endpoints()
 
     def set_log_level(self, log_level):
         """
@@ -93,19 +93,17 @@ class Session(object):
         """
         logger.setLevel(log_level)
 
-    @property
-    def uris(self):
+    def _lookup_endpoints(self):
         """
         Dictionary mapping API endpoints to their URIs.
         """
-        if not self._cached_uris:
-            keys = {key + '_collection' for key in self._collections}
-            keys.add('authentication')
-            keys.add('genome')
-            response = self.get(self.config.API_ROOT).json()
-            self._cached_uris = {key: response['root'][key]['uri']
-                                 for key in keys}
-        return self._cached_uris
+        # TODO: Is API root actually a singleton resource and should we
+        #   model it as such and query it as such?
+        keys = {key + '_collection' for key in self._collections}
+        keys.add('authentication')
+        keys.add('genome')
+        response = self.get(self.config.API_ROOT).json()
+        return {key: response['root'][key]['uri'] for key in keys}
 
     def _qualified_uri(self, uri):
         if uri.startswith('/'):

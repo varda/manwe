@@ -43,7 +43,6 @@ class TestEnvironment(object):
         self._varda_app_context.push()
 
         varda.db.create_all()
-        self.create_fixtures()
 
         self._varda_client = self._varda.test_client()
 
@@ -53,6 +52,8 @@ class TestEnvironment(object):
                        httpretty.DELETE, httpretty.HEAD):
             httpretty.register_uri(method, re.compile('%s.*' % self.api_root),
                                    body=self._proxy_request)
+
+        self.create_fixtures()
 
     def teardown(self):
         httpretty.disable()
