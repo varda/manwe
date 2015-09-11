@@ -21,7 +21,7 @@ from .errors import (ApiError, BadRequestError, ForbiddenError,
 from . import resources
 
 
-ACCEPT_VERSION = '>=1.0.0,<2.0.0'
+ACCEPT_VERSION = '>=1.1.0,<2.0.0'
 
 
 logger = logging.getLogger('manwe')
@@ -49,6 +49,7 @@ class Session(object):
     _collections = {c.key: c for c in (resources.AnnotationCollection,
                                        resources.CoverageCollection,
                                        resources.DataSourceCollection,
+                                       resources.GroupCollection,
                                        resources.SampleCollection,
                                        resources.UserCollection,
                                        resources.VariantCollection,
@@ -234,9 +235,5 @@ class Session(object):
         return self._collections[key](self, *args, **kwargs)
 
     def _create_resource(self, key, *args, **kwargs):
-        print '>>>>>>>>>>>>>>>>>>>'
-        print key
-        print self._collections[key]
-        print self._collections[key].resource_class
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)

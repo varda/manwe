@@ -456,18 +456,48 @@ class DataSourceCollection(_ResourceCollection):
     resource_class = DataSource
 
 
+class Group(_Resource):
+    """
+    Class for representing a group resource.
+    """
+    key = 'group'
+    _mutable = ('name',)
+    _immutable = ('uri',)
+
+    @classmethod
+    def create(cls, session, name):
+        """
+        Create a group resource.
+
+        :arg str name: Human readable group name.
+
+        :return: A group resource.
+        :rtype: :class:`resources.Group`
+        """
+        data = {'name': name}
+        return super(Group, cls).create(session, data=data)
+
+
+class GroupCollection(_ResourceCollection):
+    """
+    Class for representing a group resource collection as an iterator
+    returning :class:`Group` instances.
+    """
+    resource_class = Group
+
+
 class Sample(_Resource):
     """
     Class for representing a sample resource.
     """
     key = 'sample'
     _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active',
-                'notes')
+                'notes', 'groups')
     _immutable = ('uri', 'user', 'added')
 
     @classmethod
     def create(cls, session, name, pool_size=1, coverage_profile=True,
-               public=False, notes=None):
+               public=False, notes=None, groups=None):
         """
         Create a sample resource.
 
@@ -484,7 +514,8 @@ class Sample(_Resource):
         data = {'name': name,
                 'pool_size': pool_size,
                 'coverage_profile': coverage_profile,
-                'public': public}
+                'public': public,
+                'groups': groups or []}
         if notes is not None:
             data.update(notes=notes)
         return super(Sample, cls).create(session, data=data)
@@ -496,6 +527,28 @@ class Sample(_Resource):
     @property
     def user(self):
         return self.session.user(self._fields['user']['uri'])
+
+    @property
+    def groups(self):
+        return frozenset(self.session.group(group['uri'])
+                         for group in self._fields['groups'])
+
+    @groups.setter
+    def groups(self, groups):
+        self._dirty.add('groups')
+        self._fields['groups'] = list(groups)
+
+    def add_group(self, group):
+        self._dirty.add('groups')
+        groups = set(self._fields['groups'])
+        groups.add(group)
+        self._fields['groups'] = list(groups)
+
+    def remove_group(self, group):
+        self._dirty.add('groups')
+        groups = set(self._fields['groups'])
+        groups.remove(group)
+        self._fields['groups'] = list(groups)
 
 
 class SampleCollection(_ResourceCollection):
