@@ -110,12 +110,8 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
     """
     Add sample and import variation and coverage files.
     """
-    groups = groups or []
     vcf_files = vcf_files or []
     bed_files = bed_files or []
-
-    if pool_size < 1:
-        raise UserError('Pool size should be at least 1')
 
     if not no_coverage_profile and not bed_files:
         raise UserError('Expected at least one BED file')
@@ -128,12 +124,8 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
                    ({'data': open(bed_file)}, bed_file)
                    for bed_file in bed_files]
 
-    groups = [session.group(uri) for uri in groups]
-    sample = session.create_sample(name, groups=groups, pool_size=pool_size,
-                                   coverage_profile=not no_coverage_profile,
-                                   public=public)
-
-    log('Added sample: %s' % sample.uri)
+    add_sample(session, name, groups=groups, pool_size=pool_size,
+               public=public, no_coverage_profile=no_coverage_profile)
 
     for source, filename in vcf_sources:
         data_source = session.create_data_source(
