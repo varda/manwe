@@ -9,7 +9,6 @@ Manwë sessions.
 
 
 import collections
-import functools
 import json
 import logging
 import requests
@@ -237,3 +236,16 @@ class Session(object):
     def _create_resource(self, key, *args, **kwargs):
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
+
+
+# TODO: Some kind of session class factory would probably be better. It could
+# prepopulate all API call methods, which would also make them available to
+# Sphinx class documentation and the like.
+# Session = make_session_class(resources.AnnotationCollection,
+#                              resources.CoverageCollection,
+#                              resources.DataSourceCollection,
+#                              resources.GroupCollection,
+#                              resources.SampleCollection,
+#                              resources.UserCollection,
+#                              resources.VariantCollection,
+#                              resources.VariationCollection
