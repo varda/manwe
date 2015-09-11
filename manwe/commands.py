@@ -28,20 +28,85 @@ USER_CONFIGURATION = os.path.join(
     'manwe', 'config')
 
 
+class UserError(Exception):
+    pass
+
+
 def log(message):
-    sys.stderr.write(message + '\n')
+    sys.stderr.write('%s\n' % message)
 
 
 def abort(message=None):
     if message:
-        log('error: ' + message)
+        log('error: %s' % message)
     sys.exit(1)
 
 
-def import_sample(name, groups=None, pool_size=1, public=False,
+def show_sample(session, uri):
+    """
+    Show sample details.
+    """
+    sample = session.sample(uri)
+
+    print 'Sample:      %s' % sample.uri
+    print 'Name:        %s' % sample.name
+    print 'Pool size:   %i' % sample.pool_size
+    print 'Visibility:  %s' % ('public' if sample.public else 'private')
+    print 'State:       %s' % ('active' if sample.active else 'inactive')
+
+    print
+    print 'User:        %s' % sample.user.uri
+    print 'Name:        %s' % sample.user.name
+
+    for group in sample.groups:
+        print
+        print 'Group:       %s' % group.uri
+        print 'Name:        %s' % group.name
+
+    for variation in session.variations(sample=sample):
+        print
+        print 'Variation:   %s' % variation.uri
+        print 'State:       %s' % ('imported' if variation.task['done'] else 'not imported')
+
+    for coverage in session.coverages(sample=sample):
+        print
+        print 'Coverage:    %s' % coverage.uri
+        print 'State:       %s' % ('imported' if coverage.task['done'] else 'not imported')
+
+
+def activate_sample(session, uri):
+    """
+    Activate sample.
+    """
+    sample = session.sample(uri)
+
+    sample.active = True
+    sample.save()
+
+    log('Activated sample: %s' % sample.uri)
+
+
+def add_sample(session, name, groups=None, pool_size=1, public=False,
+               no_coverage_profile=False):
+    """
+    Add sample.
+    """
+    groups = groups or []
+
+    if pool_size < 1:
+        raise UserError('Pool size should be at least 1')
+
+    groups = [session.group(uri) for uri in groups]
+    sample = session.create_sample(name, groups=groups, pool_size=pool_size,
+                                   coverage_profile=not no_coverage_profile,
+                                   public=public)
+
+    log('Added sample: %s' % sample.uri)
+
+
+def import_sample(session, name, groups=None, pool_size=1, public=False,
                   no_coverage_profile=False, vcf_files=None, bed_files=None,
-                  data_uploaded=False, prefer_genotype_likelihoods=False,
-                  config=None):
+                  data_uploaded=False, prefer_genotype_likelihoods=False):
     """
     Add sample and import variation and coverage files.
     """
@@ -50,10 +115,10 @@ def import_sample(name, groups=None, pool_size=1, public=False,
     bed_files = bed_files or []
 
     if pool_size < 1:
-        abort('Pool size should be at least 1')
+        raise UserError('Pool size should be at least 1')
 
     if not no_coverage_profile and not bed_files:
-        abort('Expected at least one BED file')
+        raise UserError('Expected at least one BED file')
 
     # Todo: Nice error if file cannot be read.
     vcf_sources = [({'local_file': vcf_file}, vcf_file) if data_uploaded else
@@ -62,8 +127,6 @@ def import_sample(name, groups=None, pool_size=1, public=False,
     bed_sources = [({'local_file': bed_file}, bed_file) if data_uploaded else
                    ({'data': open(bed_file)}, bed_file)
                    for bed_file in bed_files]
-
-    session = Session(config=config)
 
     groups = [session.group(uri) for uri in groups]
     sample = session.create_sample(name, groups=groups, pool_size=pool_size,
@@ -95,8 +158,8 @@ def import_sample(name, groups=None, pool_size=1, public=False,
         log('Started coverage import: %s' % coverage.uri)
 
 
-def import_variation(uri, vcf_file, data_uploaded=False,
-                     prefer_genotype_likelihoods=False, config=None):
+def import_variation(session, uri, vcf_file, data_uploaded=False,
+                     prefer_genotype_likelihoods=False):
     """
     Import variantion file for existing sample.
     """
@@ -106,7 +169,6 @@ def import_variation(uri, vcf_file, data_uploaded=False,
     else:
         source = {'data': open(vcf_file)}
 
-    session = Session(config=config)
     sample = session.sample(uri)
 
     data_source = session.create_data_source(
@@ -121,7 +183,7 @@ def import_variation(uri, vcf_file, data_uploaded=False,
     log('Started variation import: %s' % variation.uri)
 
 
-def import_coverage(uri, bed_file, data_uploaded=False, config=None):
+def import_coverage(session, uri, bed_file, data_uploaded=False):
     """
     Import coverage file for existing sample.
     """
@@ -131,7 +193,6 @@ def import_coverage(uri, bed_file, data_uploaded=False, config=None):
     else:
         source = {'data': open(bed_file)}
 
-    session = Session(config=config)
     sample = session.sample(uri)
 
     data_source = session.create_data_source(
@@ -144,54 +205,122 @@ def import_coverage(uri, bed_file, data_uploaded=False, config=None):
     log('Started coverage import: %s' % coverage.uri)
 
 
-def activate_sample(uri, config=None):
+def list_groups(session):
     """
-    Activate sample.
+    List groups.
     """
-    session = Session(config=config)
-    sample = session.sample(uri)
+    groups = session.groups()
 
-    sample.active = True
-    sample.save()
+    for i, group in enumerate(groups):
+        if i:
+            print
+        print 'Group:  %s' % group.uri
+        print 'Name:   %s' % group.name
 
-    log('Activated sample: %s' % sample.uri)
 
-
-def show_sample(uri, config=None):
+def show_group(session, uri):
     """
-    Show sample details.
+    Show group details.
     """
-    session = Session(config=config)
-    sample = session.sample(uri)
+    try:
+        group = session.group(uri)
+    except NotFoundError:
+        raise UserError('Group does not exist: "%s"' % uri)
 
-    print 'Sample:      %s' % sample.uri
-    print 'Name:        %s' % sample.name
-    print 'Pool size:   %i' % sample.pool_size
-    print 'Visibility:  %s' % ('public' if sample.public else 'private')
-    print 'State:       %s' % ('active' if sample.active else 'inactive')
+    print 'Group:  %s' % group.uri
+    print 'Name:   %s' % group.name
+
+
+def add_group(session, name):
+    """
+    Add a sample group.
+    """
+    group = session.create_group(name)
+
+    log('Added group: %s' % group.uri)
+
+
+def list_users(session):
+    """
+    List users.
+    """
+    users = session.users()
+
+    for i, user in enumerate(users):
+        if i:
+            print
+        print 'User:   %s' % user.uri
+        print 'Name:   %s' % user.name
+        print 'Login:  %s' % user.login
+        print 'Roles:  %s' % ', '.join(sorted(user.roles))
+
+
+def show_user(session, uri):
+    """
+    Show user details.
+    """
+    try:
+        user = session.user(uri)
+    except NotFoundError:
+        raise UserError('User does not exist: "%s"' % uri)
+
+    print 'User:   %s' % user.uri
+    print 'Name:   %s' % user.name
+    print 'Login:  %s' % user.login
+    print 'Roles:  %s' % ', '.join(sorted(user.roles))
+
+
+def add_user(session, login, password, name=None, **kwargs):
+    """
+    Add an API user.
+    """
+    name = name or login
+
+    if not re.match('[a-zA-Z][a-zA-Z0-9._-]*$', login):
+        raise UserError('User login must match "[a-zA-Z][a-zA-Z0-9._-]*"')
+
+    # Todo: Define roles as constant.
+    roles = ('admin', 'importer', 'annotator', 'trader')
+    selected_roles = [role for role in roles if kwargs.get('role_' + role)]
+
+    user = session.create_user(login, password, name=name, roles=selected_roles)
+
+    log('Added user: %s' % user.uri)
+
+
+def show_data_source(session, uri):
+    """
+    Show data source details.
+    """
+    try:
+        data_source = session.data_source(uri)
+    except NotFoundError:
+        raise UserError('Data source does not exist: "%s"' % uri)
+
+    print 'Data source:  %s' % data_source.uri
+    print 'Name:         %s' % data_source.name
+    print 'Filetype:     %s' % data_source.filetype
 
     print
-    print 'User:        %s' % sample.user.uri
-    print 'Name:        %s' % sample.user.name
-
-    for group in sample.groups:
-        print
-        print 'Group:       %s' % group.uri
-        print 'Name:        %s' % group.name
-
-    for variation in session.variations(sample=sample):
-        print
-        print 'Variation:   %s' % variation.uri
-        print 'State:       %s' % ('imported' if variation.task['done'] else 'not imported')
-
-    for coverage in session.coverages(sample=sample):
-        print
-        print 'Coverage:    %s' % coverage.uri
-        print 'State:       %s' % ('imported' if coverage.task['done'] else 'not imported')
+    print 'User:         %s' % data_source.user.uri
+    print 'Name:         %s' % data_source.user.name
 
 
-def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
-                       sample_frequency=None, config=None):
+def data_source_data(session, uri):
+    """
+    Get data source data.
+    """
+    try:
+        data_source = session.data_source(uri)
+    except NotFoundError:
+        raise UserError('Data source does not exist: "%s"' % uri)
+
+    for chunk in data_source.data:
+        sys.stdout.write(chunk)
+
+
+def annotate_variation(session, vcf_file, data_uploaded=False,
+                       no_global_frequency=False, sample_frequency=None):
     """
     Annotate variantion file.
     """
@@ -202,8 +331,6 @@ def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
         source = {'local_file': vcf_file}
     else:
         source = {'data': open(vcf_file)}
-
-    session = Session(config=config)
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
@@ -219,8 +346,8 @@ def annotate_variation(vcf_file, data_uploaded=False, no_global_frequency=False,
     log('Started annotation: %s' % annotation.uri)
 
 
-def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
-                     sample_frequency=None, config=None):
+def annotate_regions(session, bed_file, data_uploaded=False,
+                     no_global_frequency=False, sample_frequency=None):
     """
     Annotate regions file.
     """
@@ -231,8 +358,6 @@ def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
         source = {'local_file': bed_file}
     else:
         source = {'data': open(bed_file)}
-
-    session = Session(config=config)
 
     sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
@@ -246,89 +371,6 @@ def annotate_regions(bed_file, data_uploaded=False, no_global_frequency=False,
         data_source, global_frequency=not no_global_frequency,
         sample_frequency=sample_frequency)
     log('Started annotation: %s' % annotation.uri)
-
-
-def add_group(name, config=None):
-    """
-    Add a sample group.
-    """
-    session = Session(config=config)
-
-    group = session.create_group(name)
-
-    log('Added group: %s' % group.uri)
-
-
-def add_user(login, password, name=None, config=None, **kwargs):
-    """
-    Add an API user.
-    """
-    name = name or login
-
-    if not re.match('[a-zA-Z][a-zA-Z0-9._-]*$', login):
-        abort('User login must match "[a-zA-Z][a-zA-Z0-9._-]*"')
-
-    session = Session(config=config)
-
-    # Todo: Define roles as constant.
-    roles = ('admin', 'importer', 'annotator', 'trader')
-    selected_roles = [role for role in roles if kwargs.get('role_' + role)]
-
-    user = session.create_user(login, password, name=name, roles=selected_roles)
-
-    log('Added user: %s' % user.uri)
-
-
-def show_user(uri, config=None):
-    """
-    Show user details.
-    """
-    session = Session(config=config)
-
-    try:
-        user = session.user(uri)
-    except NotFoundError:
-        abort('User does not exist: "%s"' % uri)
-
-    print 'User:   %s' % user.uri
-    print 'Name:   %s' % user.name
-    print 'Login:  %s' % user.login
-    print 'Roles:  %s' % ', '.join(sorted(user.roles))
-
-
-def show_data_source(uri, config=None):
-    """
-    Show data source details.
-    """
-    session = Session(config=config)
-
-    try:
-        data_source = session.data_source(uri)
-    except NotFoundError:
-        abort('Data source does not exist: "%s"' % uri)
-
-    print 'Data source:  %s' % data_source.uri
-    print 'Name:         %s' % data_source.name
-    print 'Filetype:     %s' % data_source.filetype
-
-    print
-    print 'User:         %s' % data_source.user.uri
-    print 'Name:         %s' % data_source.user.name
-
-
-def data_source_data(uri, config=None):
-    """
-    Get data source data.
-    """
-    session = Session(config=config)
-
-    try:
-        data_source = session.data_source(uri)
-    except NotFoundError:
-        abort('Data source does not exist: "%s"' % uri)
-
-    for chunk in data_source.data:
-        sys.stdout.write(chunk)
 
 
 def create_config(filename=None):
@@ -376,164 +418,280 @@ def main():
     Manwë command line interface.
     """
     config_parser = argparse.ArgumentParser(add_help=False)
-    config_parser.add_argument('--config', metavar='CONFIG_FILE', type=str,
-                               dest='config', help='path to configuration file '
-                               'to use instead of looking in default locations')
+    config_parser.add_argument(
+        '--config', metavar='CONFIG_FILE', type=str, dest='config',
+        help='path to configuration file to use instead of looking in '
+        'default locations')
 
-    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0],
-                                     parents=[config_parser])
+    parser = argparse.ArgumentParser(
+        description=__doc__.split('\n\n')[0], parents=[config_parser])
+    subparsers = parser.add_subparsers(
+        title='subcommands', dest='subcommand', help='subcommand help')
 
-    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
-                                       help='subcommand help')
+    # Subparsers for 'samples'.
+    s = subparsers.add_parser(
+        'samples', help='manage samples', description='Manage sample resources.'
+    ).add_subparsers()
 
-    p = subparsers.add_parser('import-sample', help='import sample data',
-                              description=import_sample.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparser 'samples show'.
+    p = s.add_parser(
+        'show', help='show sample details',
+        description=show_sample.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=show_sample)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='sample URI')
+
+    # Subparser 'samples activate'.
+    p = s.add_parser(
+        'activate', help='activate sample',
+        description=activate_sample.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=activate_sample)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='sample URI')
+
+    # Subparser 'samples add'.
+    p = s.add_parser(
+        'add', help='add sample',
+        description=add_sample.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=add_sample)
+    p.add_argument(
+        'name', metavar='NAME', type=str, help='sample name')
+    p.add_argument(
+        '--groups', metavar='URI', nargs='+', default=[], required=False,
+        help='sample groups')
+    p.add_argument(
+        '-s', '--pool-size', dest='pool_size', default=1, type=int,
+        help='number of individuals in sample (default: 1)')
+    p.add_argument(
+        '-p', '--public', dest='public', action='store_true',
+        help='sample data is public')
+    p.add_argument(
+        '--no-coverage-profile', dest='no_coverage_profile', action='store_true',
+        help='sample has no coverage profile')
+
+    # Subparser 'samples import'.
+    p = s.add_parser(
+        'import', help='add sample and import data',
+        description=import_sample.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=import_sample)
-    p.add_argument('name', metavar='NAME', type=str, help='sample name')
-    p.add_argument('--groups', metavar='URI', nargs='+', help='sample groups')
-    p.add_argument('--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
-                   required=True,
-                   help='file in VCF 4.1 format to import variants from')
-    p.add_argument('--bed', metavar='BED_FILE', dest='bed_files', nargs='+',
-                   required=False, default=[],
-                   help='file in BED format to import covered regions from')
-    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
-                   action='store_true', help='data files are already '
-                   'uploaded to the server')
-    p.add_argument('-s', '--pool-size', dest='pool_size', default=1, type=int,
-                   help='number of individuals in sample (default: 1)')
-    p.add_argument('-p', '--public', dest='public', action='store_true',
-                   help='sample data is public')
+    p.add_argument(
+        'name', metavar='NAME', type=str, help='sample name')
+    p.add_argument(
+        '--groups', metavar='URI', nargs='+', default=[], required=False,
+        help='sample groups')
+    p.add_argument(
+        '--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
+        required=True, help='file in VCF 4.1 format to import variants from')
+    p.add_argument(
+        '--bed', metavar='BED_FILE', dest='bed_files', nargs='+', default=[],
+        required=False, help='file in BED format to import covered regions from')
+    p.add_argument(
+        '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
+        help='data files are already uploaded to the server')
+    p.add_argument(
+        '-s', '--pool-size', dest='pool_size', default=1, type=int,
+        help='number of individuals in sample (default: 1)')
+    p.add_argument(
+        '-p', '--public', dest='public', action='store_true',
+        help='sample data is public')
     # Note: We prefer to explicitely include the --no-coverage-profile instead
     #     of concluding it from an empty list of BED files. This prevents
     #     accidentally forgetting the coverage profile.
-    p.add_argument('--no-coverage-profile', dest='no_coverage_profile',
-                   action='store_true', help='sample has no coverage profile')
-    p.add_argument('-l', '--prefer_genotype_likelihoods',
-                   dest='prefer_genotype_likelihoods', action='store_true',
-                   help='in VCF files, derive genotypes from likelihood scores '
-                   'instead of using reported genotypes (use this if the file '
-                   'was produced by samtools)')
+    p.add_argument(
+        '--no-coverage-profile', dest='no_coverage_profile', action='store_true',
+        help='sample has no coverage profile')
+    p.add_argument(
+        '-l', '--prefer_genotype_likelihoods', dest='prefer_genotype_likelihoods',
+        action='store_true', help='in VCF files, derive genotypes from '
+        'likelihood scores instead of using reported genotypes (use this if '
+        'the file was produced by samtools)')
 
-    p = subparsers.add_parser('import-vcf', help='import VCF file for existing sample',
-                              description=import_variation.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparser 'samples import-vcf'.
+    p = s.add_parser(
+        'import-vcf', help='import VCF file for existing sample',
+        description=import_variation.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=import_variation)
-    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
-    p.add_argument('vcf_file', metavar='VCF_FILE',
-                   help='file in VCF 4.1 format to import variants from')
-    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
-                   action='store_true', help='data files are already '
-                   'uploaded to the server')
-    p.add_argument('-l', '--prefer_genotype_likelihoods',
-                   dest='prefer_genotype_likelihoods', action='store_true',
-                   help='in VCF files, derive genotypes from likelihood scores '
-                   'instead of using reported genotypes (use this if the file '
-                   'was produced by samtools)')
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='sample URI')
+    p.add_argument(
+        'vcf_file', metavar='VCF_FILE',
+        help='file in VCF 4.1 format to import variants from')
+    p.add_argument(
+        '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
+        help='data files are already uploaded to the server')
+    p.add_argument(
+        '-l', '--prefer_genotype_likelihoods', dest='prefer_genotype_likelihoods',
+        action='store_true', help='in VCF files, derive genotypes from '
+        'likelihood scores instead of using reported genotypes (use this if '
+        'the file was produced by samtools)')
 
-    p = subparsers.add_parser('import-bed', help='import BED file for existing sample',
-                              description=import_coverage.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparser 'samples import-bed'.
+    p = s.add_parser(
+        'import-bed', help='import BED file for existing sample',
+        description=import_coverage.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=import_coverage)
-    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
-    p.add_argument('bed_file', metavar='BED_FILE',
-                   help='file in BED format to import covered regions from')
-    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
-                   action='store_true', help='data files are already '
-                   'uploaded to the server')
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='sample URI')
+    p.add_argument(
+        'bed_file', metavar='BED_FILE',
+        help='file in BED format to import covered regions from')
+    p.add_argument(
+        '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
+        help='data files are already uploaded to the server')
 
-    p = subparsers.add_parser('activate', help='activate sample',
-                              description=activate_sample.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=activate_sample)
-    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
+    # Subparsers for 'groups'.
+    s = subparsers.add_parser(
+        'groups', help='manage groups', description='Manage group resources.'
+    ).add_subparsers()
 
-    p = subparsers.add_parser('sample', help='show sample details',
-                              description=show_sample.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=show_sample)
-    p.add_argument('uri', metavar='URI', type=str, help='sample URI')
+    # Subparser 'groups list'.
+    p = s.add_parser(
+        'list', help='list groups',
+        description=list_groups.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=list_groups)
 
-    p = subparsers.add_parser('annotate-vcf', help='annotate VCF file with frequencies',
-                              description=annotate_variation.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=annotate_variation)
-    p.add_argument('vcf_file', metavar='VCF_FILE',
-                   help='file in VCF 4.1 format to annotate')
-    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
-                   action='store_true', help='data files are already '
-                   'uploaded to the server')
-    p.add_argument('-n', '--no-global-frequencies', dest='no_global_frequency',
-                   action='store_true', help='do not annotate with global frequencies')
-    p.add_argument('-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
-                   nargs='+', required=False, default=[],
-                   help='annotate with frequencies over these samples')
+    # Subparser 'groups show'.
+    p = s.add_parser(
+        'show', help='show group details',
+        description=show_group.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=show_group)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='group URI')
 
-    p = subparsers.add_parser('annotate-bed', help='annotate BED file with frequencies',
-                              description=annotate_regions.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=annotate_regions)
-    p.add_argument('bed_file', metavar='BED_FILE',
-                   help='file in BED format to annotate')
-    p.add_argument('-u', '--data-uploaded', dest='data_uploaded',
-                   action='store_true', help='data files are already '
-                   'uploaded to the server')
-    p.add_argument('-n', '--no-global-frequencies', dest='no_global_frequency',
-                   action='store_true', help='do not annotate with global frequencies')
-    p.add_argument('-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
-                   nargs='+', required=False, default=[],
-                   help='annotate with frequencies over these samples')
-
-    p = subparsers.add_parser('add-group', help='add new sample group',
-                              description=add_group.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparser 'groups add'.
+    p = s.add_parser(
+        'add', help='add new sample group',
+        description=add_group.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=add_group)
-    p.add_argument('name', metavar='NAME', type=str, help='group name')
+    p.add_argument(
+        'name', metavar='NAME', type=str, help='group name')
 
-    p = subparsers.add_parser('add-user', help='add new API user',
-                              description=add_user.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=add_user)
-    p.add_argument('login', metavar='LOGIN', type=str, help='user login')
-    p.add_argument('password', metavar='PASSWORD', type=str,
-                   help='user password')
-    p.add_argument('-n', '--name', dest='name', type=str,
-                   help='real name (default: login)')
-    p.add_argument('--admin', dest='role_admin', action='store_true',
-                   help='user has admin role')
-    p.add_argument('--importer', dest='role_importer', action='store_true',
-                   help='user has importer role')
-    p.add_argument('--annotator', dest='role_annotator', action='store_true',
-                   help='user has annotator role')
-    p.add_argument('--trader', dest='role_trader', action='store_true',
-                   help='user has trader role')
+    # Subparsers for 'users'.
+    s = subparsers.add_parser(
+        'users', help='manage users', description='Manage user resources.'
+    ).add_subparsers()
 
-    p = subparsers.add_parser('user', help='show user details',
-                              description=show_sample.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparser 'users list'.
+    p = s.add_parser(
+        'list', help='list users',
+        description=list_users.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=list_users)
+
+    # Subparser 'users show'.
+    p = s.add_parser(
+        'show', help='show user details',
+        description=show_user.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=show_user)
     p.add_argument('uri', metavar='URI', type=str, help='user URI')
 
-    p = subparsers.add_parser('data-source', help='show data source details',
-                              description=show_data_source.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
-    p.set_defaults(func=show_data_source)
-    p.add_argument('uri', metavar='URI', type=str, help='data source URI')
+    p = s.add_parser(
+        'add', help='add new API user',
+        description=add_user.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=add_user)
+    p.add_argument(
+        'login', metavar='LOGIN', type=str, help='user login')
+    p.add_argument(
+        'password', metavar='PASSWORD', type=str, help='user password')
+    p.add_argument(
+        '-n', '--name', dest='name', type=str,
+        help='real name (default: login)')
+    p.add_argument(
+        '--admin', dest='role_admin', action='store_true',
+        help='user has admin role')
+    p.add_argument(
+        '--importer', dest='role_importer', action='store_true',
+        help='user has importer role')
+    p.add_argument(
+        '--annotator', dest='role_annotator', action='store_true',
+        help='user has annotator role')
+    p.add_argument(
+        '--trader', dest='role_trader', action='store_true',
+        help='user has trader role')
 
-    p = subparsers.add_parser('download-data-source',
-                              help='download data source and write data to standard output',
-                              description=data_source_data.__doc__.split('\n\n')[0],
-                              parents=[config_parser])
+    # Subparsers for 'data-sources'.
+    s = subparsers.add_parser(
+        'data-sources', help='manage data sources',
+        description='Manage data source resources.'
+    ).add_subparsers()
+
+    # Subparser 'data-sources show'.
+    p = s.add_parser(
+        'show', help='show data source details',
+        description=show_data_source.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=show_data_source)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='data source URI')
+
+    # Subparser 'data-sources download'.
+    p = s.add_parser(
+        'download', help='download data source and write data to standard output',
+        description=data_source_data.__doc__.split('\n\n')[0],
+        parents=[config_parser])
     p.set_defaults(func=data_source_data)
-    p.add_argument('uri', metavar='URI', type=str, help='data source URI')
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='data source URI')
+
+    # Subparser 'annotate-vcf'.
+    p = subparsers.add_parser(
+        'annotate-vcf', help='annotate VCF file with frequencies',
+        description=annotate_variation.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=annotate_variation)
+    p.add_argument(
+        'vcf_file', metavar='VCF_FILE',
+        help='file in VCF 4.1 format to annotate')
+    p.add_argument(
+        '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
+        help='data files are already uploaded to the server')
+    p.add_argument(
+        '-n', '--no-global-frequencies', dest='no_global_frequency',
+        action='store_true', help='do not annotate with global frequencies')
+    p.add_argument(
+        '-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
+        nargs='+', required=False, default=[],
+        help='annotate with frequencies over these samples')
+
+    # Subparser 'annotate-bed'.
+    p = subparsers.add_parser(
+        'annotate-bed', help='annotate BED file with frequencies',
+        description=annotate_regions.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=annotate_regions)
+    p.add_argument(
+        'bed_file', metavar='BED_FILE', help='file in BED format to annotate')
+    p.add_argument(
+        '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
+        help='data files are already uploaded to the server')
+    p.add_argument(
+        '-n', '--no-global-frequencies', dest='no_global_frequency',
+        action='store_true', help='do not annotate with global frequencies')
+    p.add_argument(
+        '-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
+        nargs='+', required=False, default=[],
+        help='annotate with frequencies over these samples')
 
     args = parser.parse_args()
 
     try:
-        args.func(config=create_config(args.config),
+        session = Session(config=create_config(args.config))
+        args.func(session=session,
                   **{k: v for k, v in vars(args).items()
                      if k not in ('config', 'func', 'subcommand')})
+    except UserError as e:
+        parser.error(e)
     except UnauthorizedError:
         abort('Authentication is needed, please make sure you have the '
               'correct authentication token defined in "%s"'
