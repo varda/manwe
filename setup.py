@@ -6,7 +6,7 @@ import sys
 if sys.version_info < (2, 7):
     raise Exception('Manwë requires Python 2.7 or higher.')
 
-install_requires = ['flask', 'python-dateutil', 'requests', 'Werkzeug']
+install_requires = ['python-dateutil', 'requests', 'Flask']
 
 try:
     with open('README.rst') as readme:
