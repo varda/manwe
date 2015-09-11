@@ -76,3 +76,26 @@ class TestSession(utils.TestEnvironment):
         assert samples_admin.user == admin
         with pytest.raises(StopIteration):
             next(samples_admin)
+
+    def test_variant_annotate(self):
+        """
+        Annotate a variant.
+        """
+        variant = self.session.create_variant('chr8', 800000, 'T', 'A')
+        annotations = variant.annotate(queries={'GLOBAL': '*'})
+
+        assert annotations == {'GLOBAL': {'coverage': 0,
+                                          'frequency': 0,
+                                          'frequency_het': 0,
+                                          'frequency_hom': 0}}
+
+    def test_variant_normalize(self):
+        """
+        Normalize a variant.
+        """
+        variant = self.session.create_variant('chr8', 800000, 'ATTTT', 'ATTTTT')
+
+        assert variant.chromosome == '8'
+        assert variant.position == 800001
+        assert variant.reference == ''
+        assert variant.observed == 'T'
