@@ -37,6 +37,36 @@ class TestSession(utils.TestEnvironment):
         data_source_uri = self.uri_for_data_source(name='test data source')
         assert data_source.uri == data_source_uri
 
+    def test_samples_by_public(self):
+        """
+        Filter sample collection by public status.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Private sample', public=False))
+        varda.db.session.add(varda.models.Sample(admin, 'Public sample', public=True))
+        varda.db.session.commit()
+
+        # All samples.
+        samples = self.session.samples()
+        assert samples.size == 2
+        assert samples.public is None
+
+        # Private samples.
+        samples = self.session.samples(public=False)
+        assert samples.size == 1
+        assert not samples.public
+        sample = next(samples)
+        assert not sample.public
+        assert sample.name == 'Private sample'
+
+        # Public samples.
+        samples = self.session.samples(public=True)
+        assert samples.size == 1
+        assert samples.public
+        sample = next(samples)
+        assert sample.public
+        assert sample.name == 'Public sample'
+
     def test_samples_by_user(self):
         """
         Filter sample collection by user.
