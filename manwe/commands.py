@@ -11,6 +11,7 @@ Todo: Move some of the docstring from the _old_population_study.py file here.
 
 
 import argparse
+import getpass
 import os
 import re
 import sys
@@ -18,6 +19,7 @@ import sys
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
+from .resources import USER_ROLES
 from .session import Session
 
 
@@ -40,6 +42,32 @@ def abort(message=None):
     if message:
         log('error: %s' % message)
     sys.exit(1)
+
+
+def list_samples(session, public=False, user=None, groups=None):
+    """
+    List samples.
+    """
+    groups = groups or []
+
+    filters = {}
+    if public:
+        filters.update(public=True)
+    if user:
+        filters.update(user=user)
+    if groups:
+        filters.update(groups=groups)
+
+    samples = session.samples(**filters)
+
+    for i, sample in enumerate(samples):
+        if i:
+            print
+        print 'Sample:      %s' % sample.uri
+        print 'Name:        %s' % sample.name
+        print 'Pool size:   %i' % sample.pool_size
+        print 'Visibility:  %s' % ('public' if sample.public else 'private')
+        print 'State:       %s' % ('active' if sample.active else 'inactive')
 
 
 def show_sample(session, uri):
@@ -153,7 +181,7 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
 def import_variation(session, uri, vcf_file, data_uploaded=False,
                      prefer_genotype_likelihoods=False):
     """
-    Import variantion file for existing sample.
+    Import variation file for existing sample.
     """
     # Todo: Nice error if file cannot be read.
     if data_uploaded:
@@ -262,21 +290,22 @@ def show_user(session, uri):
     print 'Roles:  %s' % ', '.join(sorted(user.roles))
 
 
-def add_user(session, login, password, name=None, **kwargs):
+def add_user(session, login, name=None, roles=None):
     """
-    Add an API user.
+    Add an API user (queries for password).
     """
+    roles = roles or []
     name = name or login
 
     if not re.match('[a-zA-Z][a-zA-Z0-9._-]*$', login):
         raise UserError('User login must match "[a-zA-Z][a-zA-Z0-9._-]*"')
 
-    # Todo: Define roles as constant.
-    roles = ('admin', 'importer', 'annotator', 'trader', 'querier',
-             'group-querier')
-    selected_roles = [role for role in roles if kwargs.get('role_' + role)]
+    password = getpass.getpass('Please provide a password for the new user: ')
+    password_control = getpass.getpass('Repeat: ')
+    if password != password_control:
+        raise UserError('Passwords did not match')
 
-    user = session.create_user(login, password, name=name, roles=selected_roles)
+    user = session.create_user(login, password, name=name, roles=roles)
 
     log('Added user: %s' % user.uri)
 
@@ -301,7 +330,7 @@ def show_data_source(session, uri):
 
 def data_source_data(session, uri):
     """
-    Get data source data.
+    Download data source and write data to standard output.
     """
     try:
         data_source = session.data_source(uri)
@@ -314,7 +343,7 @@ def data_source_data(session, uri):
 
 def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
     """
-    Annotate variantion file.
+    Annotate variation file.
     """
     queries = queries or {}
 
@@ -426,7 +455,7 @@ def main():
 
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument(
-        '--config', metavar='CONFIG_FILE', type=str, dest='config',
+        '-c', '--config', metavar='FILE', type=str, dest='config',
         help='path to configuration file to use instead of looking in '
         'default locations')
 
@@ -440,6 +469,22 @@ def main():
         'samples', help='manage samples', description='Manage sample resources.'
     ).add_subparsers()
 
+    # Subparser 'samples list'.
+    p = s.add_parser(
+        'list', help='list samples',
+        description=list_samples.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=list_samples)
+    p.add_argument(
+        '-p', '--public', dest='public', action='store_true',
+        help='only public samples')
+    p.add_argument(
+        '-u', '--user', dest='user', metavar='URI',
+        help='filter samples by user')
+    p.add_argument(
+        '-g', '--group', dest='groups', metavar='URI', action='append',
+        help='filter samples by group (more than one allowed)')
+
     # Subparser 'samples show'.
     p = s.add_parser(
         'show', help='show sample details',
@@ -447,7 +492,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_sample)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
 
     # Subparser 'samples activate'.
     p = s.add_parser(
@@ -456,7 +501,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=activate_sample)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
 
     # Subparser 'samples add'.
     p = s.add_parser(
@@ -467,8 +512,8 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--groups', metavar='URI', nargs='+', default=[], required=False,
-        help='sample groups')
+        '-g', '--group', dest='groups', metavar='URI', action='append',
+        help='sample group (more than one allowed)')
     p.add_argument(
         '-s', '--pool-size', dest='pool_size', default=1, type=int,
         help='number of individuals in sample (default: 1)')
@@ -488,14 +533,16 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--groups', metavar='URI', nargs='+', default=[], required=False,
-        help='sample groups')
+        '-g', '--group', dest='groups', metavar='URI', action='append',
+        help='sample group (more than one allowed)')
     p.add_argument(
-        '--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
-        required=True, help='file in VCF 4.1 format to import variants from')
+        '--vcf', metavar='VCF_FILE', dest='vcf_files', action='append',
+        required=True, help='file in VCF 4.1 format to import variants from '
+        '(more than one allowed)')
     p.add_argument(
-        '--bed', metavar='BED_FILE', dest='bed_files', nargs='+', default=[],
-        required=False, help='file in BED format to import covered regions from')
+        '--bed', metavar='BED_FILE', dest='bed_files', action='append',
+        help='file in BED format to import covered regions from (more than '
+        'one allowed)')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
@@ -524,9 +571,9 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=import_variation)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
     p.add_argument(
-        'vcf_file', metavar='VCF_FILE',
+        'vcf_file', metavar='FILE',
         help='file in VCF 4.1 format to import variants from')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
@@ -544,9 +591,9 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=import_coverage)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
     p.add_argument(
-        'bed_file', metavar='BED_FILE',
+        'bed_file', metavar='FILE',
         help='file in BED format to import covered regions from')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
@@ -571,7 +618,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_group)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='group URI')
+        'uri', metavar='URI', type=str, help='group')
 
     # Subparser 'groups add'.
     p = s.add_parser(
@@ -600,7 +647,7 @@ def main():
         description=show_user.__doc__.split('\n\n')[0],
         parents=[config_parser])
     p.set_defaults(func=show_user)
-    p.add_argument('uri', metavar='URI', type=str, help='user URI')
+    p.add_argument('uri', metavar='URI', type=str, help='user')
 
     p = s.add_parser(
         'add', help='add new API user',
@@ -610,28 +657,12 @@ def main():
     p.add_argument(
         'login', metavar='LOGIN', type=str, help='user login')
     p.add_argument(
-        'password', metavar='PASSWORD', type=str, help='user password')
-    p.add_argument(
-        '-n', '--name', dest='name', type=str,
-        help='real name (default: login)')
-    p.add_argument(
-        '--admin', dest='role_admin', action='store_true',
-        help='user has admin role')
-    p.add_argument(
-        '--importer', dest='role_importer', action='store_true',
-        help='user has importer role')
-    p.add_argument(
-        '--annotator', dest='role_annotator', action='store_true',
-        help='user has annotator role')
-    p.add_argument(
-        '--trader', dest='role_trader', action='store_true',
-        help='user has trader role')
-    p.add_argument(
-        '--querier', dest='role_querier', action='store_true',
-        help='user has querier role')
-    p.add_argument(
-        '--group-querier', dest='role_group-querier', action='store_true',
-        help='user has group-querier role')
+        '-n', '--name', metavar='NAME', dest='name', type=str,
+        help='user name (default: LOGIN)')
+    for role in USER_ROLES:
+        p.add_argument(
+            '--%s' % role, dest='roles', action='append_const', const=role,
+            help='user has %s role' % role)
 
     # Subparsers for 'data-sources'.
     s = subparsers.add_parser(
@@ -646,16 +677,16 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_data_source)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='data source URI')
+        'uri', metavar='URI', type=str, help='data source')
 
     # Subparser 'data-sources download'.
     p = s.add_parser(
-        'download', help='download data source and write data to standard output',
+        'download', help='download data source',
         description=data_source_data.__doc__.split('\n\n')[0],
         parents=[config_parser])
     p.set_defaults(func=data_source_data)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='data source URI')
+        'uri', metavar='URI', type=str, help='data source')
 
     # Subparser 'annotate-vcf'.
     p = subparsers.add_parser(
@@ -664,8 +695,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=annotate_variation)
     p.add_argument(
-        'vcf_file', metavar='VCF_FILE',
-        help='file in VCF 4.1 format to annotate')
+        'vcf_file', metavar='FILE', help='file in VCF 4.1 format to annotate')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
@@ -681,17 +711,14 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=annotate_regions)
     p.add_argument(
-        'bed_file', metavar='BED_FILE', help='file in BED format to annotate')
+        'bed_file', metavar='FILE', help='file in BED format to annotate')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
     p.add_argument(
-        '-n', '--no-global-frequencies', dest='no_global_frequency',
-        action='store_true', help='do not annotate with global frequencies')
-    p.add_argument(
-        '-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
-        nargs='+', required=False, default=[],
-        help='annotate with frequencies over these samples')
+        '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
+        metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
+        'one allowed)')
 
     args = parser.parse_args()
 
@@ -701,7 +728,7 @@ def main():
                   **{k: v for k, v in vars(args).items()
                      if k not in ('config', 'func', 'subcommand')})
     except UserError as e:
-        parser.error(e)
+        abort(e)
     except UnauthorizedError:
         abort('Authentication is needed, please make sure you have the '
               'correct authentication token defined in "%s"'
