@@ -44,6 +44,32 @@ def abort(message=None):
     sys.exit(1)
 
 
+def list_samples(session, public=False, user=None, groups=None):
+    """
+    List samples.
+    """
+    groups = groups or []
+
+    filters = {}
+    if public:
+        filters.update(public=True)
+    if user:
+        filters.update(user=user)
+    if groups:
+        filters.update(groups=groups)
+
+    samples = session.samples(**filters)
+
+    for i, sample in enumerate(samples):
+        if i:
+            print
+        print 'Sample:      %s' % sample.uri
+        print 'Name:        %s' % sample.name
+        print 'Pool size:   %i' % sample.pool_size
+        print 'Visibility:  %s' % ('public' if sample.public else 'private')
+        print 'State:       %s' % ('active' if sample.active else 'inactive')
+
+
 def show_sample(session, uri):
     """
     Show sample details.
@@ -442,6 +468,22 @@ def main():
     s = subparsers.add_parser(
         'samples', help='manage samples', description='Manage sample resources.'
     ).add_subparsers()
+
+    # Subparser 'samples list'.
+    p = s.add_parser(
+        'list', help='list samples',
+        description=list_samples.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=list_samples)
+    p.add_argument(
+        '-p', '--public', dest='public', action='store_true',
+        help='only public samples')
+    p.add_argument(
+        '-u', '--user', dest='user', metavar='URI',
+        help='filter samples by user')
+    p.add_argument(
+        '-g', '--group', dest='groups', metavar='URI', action='append',
+        help='filter samples by group (more than one allowed)')
 
     # Subparser 'samples show'.
     p = s.add_parser(
