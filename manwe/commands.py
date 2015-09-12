@@ -686,12 +686,9 @@ def main():
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
     p.add_argument(
-        '-n', '--no-global-frequencies', dest='no_global_frequency',
-        action='store_true', help='do not annotate with global frequencies')
-    p.add_argument(
-        '-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
-        nargs='+', required=False, default=[],
-        help='annotate with frequencies over these samples')
+        '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
+        metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
+        'one allowed)')
 
     args = parser.parse_args()
 
