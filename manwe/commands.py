@@ -153,7 +153,7 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
 def import_variation(session, uri, vcf_file, data_uploaded=False,
                      prefer_genotype_likelihoods=False):
     """
-    Import variantion file for existing sample.
+    Import variation file for existing sample.
     """
     # Todo: Nice error if file cannot be read.
     if data_uploaded:
@@ -301,7 +301,7 @@ def show_data_source(session, uri):
 
 def data_source_data(session, uri):
     """
-    Get data source data.
+    Download data source and write data to standard output.
     """
     try:
         data_source = session.data_source(uri)
@@ -314,7 +314,7 @@ def data_source_data(session, uri):
 
 def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
     """
-    Annotate variantion file.
+    Annotate variation file.
     """
     queries = queries or {}
 
@@ -426,7 +426,7 @@ def main():
 
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument(
-        '--config', metavar='CONFIG_FILE', type=str, dest='config',
+        '-c', '--config', metavar='FILE', type=str, dest='config',
         help='path to configuration file to use instead of looking in '
         'default locations')
 
@@ -447,7 +447,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_sample)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
 
     # Subparser 'samples activate'.
     p = s.add_parser(
@@ -456,7 +456,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=activate_sample)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
 
     # Subparser 'samples add'.
     p = s.add_parser(
@@ -467,7 +467,7 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--group', dest='groups', metavar='URI', action='append',
+        '-g', '--group', dest='groups', metavar='URI', action='append',
         help='sample group (more than one allowed)')
     p.add_argument(
         '-s', '--pool-size', dest='pool_size', default=1, type=int,
@@ -488,7 +488,7 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--group', dest='groups', metavar='URI', action='append',
+        '-g', '--group', dest='groups', metavar='URI', action='append',
         help='sample group (more than one allowed)')
     p.add_argument(
         '--vcf', metavar='VCF_FILE', dest='vcf_files', action='append',
@@ -526,9 +526,9 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=import_variation)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
     p.add_argument(
-        'vcf_file', metavar='VCF_FILE',
+        'vcf_file', metavar='FILE',
         help='file in VCF 4.1 format to import variants from')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
@@ -546,9 +546,9 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=import_coverage)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='sample URI')
+        'uri', metavar='URI', type=str, help='sample')
     p.add_argument(
-        'bed_file', metavar='BED_FILE',
+        'bed_file', metavar='FILE',
         help='file in BED format to import covered regions from')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
@@ -573,7 +573,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_group)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='group URI')
+        'uri', metavar='URI', type=str, help='group')
 
     # Subparser 'groups add'.
     p = s.add_parser(
@@ -602,7 +602,7 @@ def main():
         description=show_user.__doc__.split('\n\n')[0],
         parents=[config_parser])
     p.set_defaults(func=show_user)
-    p.add_argument('uri', metavar='URI', type=str, help='user URI')
+    p.add_argument('uri', metavar='URI', type=str, help='user')
 
     p = s.add_parser(
         'add', help='add new API user',
@@ -614,8 +614,8 @@ def main():
     p.add_argument(
         'password', metavar='PASSWORD', type=str, help='user password')
     p.add_argument(
-        '-n', '--name', dest='name', type=str,
-        help='real name (default: login)')
+        '-n', '--name', metavar='NAME', dest='name', type=str,
+        help='user name (default: LOGIN)')
     p.add_argument(
         '--admin', dest='role_admin', action='store_true',
         help='user has admin role')
@@ -648,16 +648,16 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=show_data_source)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='data source URI')
+        'uri', metavar='URI', type=str, help='data source')
 
     # Subparser 'data-sources download'.
     p = s.add_parser(
-        'download', help='download data source and write data to standard output',
+        'download', help='download data source',
         description=data_source_data.__doc__.split('\n\n')[0],
         parents=[config_parser])
     p.set_defaults(func=data_source_data)
     p.add_argument(
-        'uri', metavar='URI', type=str, help='data source URI')
+        'uri', metavar='URI', type=str, help='data source')
 
     # Subparser 'annotate-vcf'.
     p = subparsers.add_parser(
@@ -666,8 +666,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=annotate_variation)
     p.add_argument(
-        'vcf_file', metavar='VCF_FILE',
-        help='file in VCF 4.1 format to annotate')
+        'vcf_file', metavar='FILE', help='file in VCF 4.1 format to annotate')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
@@ -683,7 +682,7 @@ def main():
         parents=[config_parser])
     p.set_defaults(func=annotate_regions)
     p.add_argument(
-        'bed_file', metavar='BED_FILE', help='file in BED format to annotate')
+        'bed_file', metavar='FILE', help='file in BED format to annotate')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
