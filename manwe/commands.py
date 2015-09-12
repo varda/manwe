@@ -19,6 +19,7 @@ import sys
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
+from .resources import USER_ROLES
 from .session import Session
 
 
@@ -263,10 +264,11 @@ def show_user(session, uri):
     print 'Roles:  %s' % ', '.join(sorted(user.roles))
 
 
-def add_user(session, login, name=None, **kwargs):
+def add_user(session, login, name=None, roles=None):
     """
     Add an API user (queries for password).
     """
+    roles = roles or []
     name = name or login
 
     if not re.match('[a-zA-Z][a-zA-Z0-9._-]*$', login):
@@ -277,12 +279,7 @@ def add_user(session, login, name=None, **kwargs):
     if password != password_control:
         raise UserError('Passwords did not match')
 
-    # Todo: Define roles as constant.
-    roles = ('admin', 'importer', 'annotator', 'trader', 'querier',
-             'group-querier')
-    selected_roles = [role for role in roles if kwargs.get('role_' + role)]
-
-    user = session.create_user(login, password, name=name, roles=selected_roles)
+    user = session.create_user(login, password, name=name, roles=roles)
 
     log('Added user: %s' % user.uri)
 
@@ -620,24 +617,10 @@ def main():
     p.add_argument(
         '-n', '--name', metavar='NAME', dest='name', type=str,
         help='user name (default: LOGIN)')
-    p.add_argument(
-        '--admin', dest='role_admin', action='store_true',
-        help='user has admin role')
-    p.add_argument(
-        '--importer', dest='role_importer', action='store_true',
-        help='user has importer role')
-    p.add_argument(
-        '--annotator', dest='role_annotator', action='store_true',
-        help='user has annotator role')
-    p.add_argument(
-        '--trader', dest='role_trader', action='store_true',
-        help='user has trader role')
-    p.add_argument(
-        '--querier', dest='role_querier', action='store_true',
-        help='user has querier role')
-    p.add_argument(
-        '--group-querier', dest='role_group-querier', action='store_true',
-        help='user has group-querier role')
+    for role in USER_ROLES:
+        p.add_argument(
+            '--%s' % role, dest='roles', action='append_const', const=role,
+            help='user has %s role' % role)
 
     # Subparsers for 'data-sources'.
     s = subparsers.add_parser(

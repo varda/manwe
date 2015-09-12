@@ -24,6 +24,17 @@ COLLECTION_CACHE_SIZE = 20
 DATA_BUFFER_SIZE = 1024
 
 
+# This mirrors `varda.models.USER_ROLES`.
+USER_ROLES = (
+    'admin',         # Can do anything.
+    'importer',      # Can import samples.
+    'annotator',     # Can annotate variants.
+    'trader',        # Can annotate variants if they are in an active sample.
+    'querier',       # Can use any query expression when annotating.
+    'group-querier'  # Can use group query expressions when annotating.
+)
+
+
 class classproperty(object):
     """
     Decorator for defining computed class attributes, dual to the `property`
@@ -595,9 +606,8 @@ class User(_Resource):
         :arg str password: Password used for authentication.
         :arg str name: Human readable user name.
         :arg str email: User e-mail address.
-        :arg roles: Roles for this user. Possible values are ``admin``,
-          ``importer``, ``annotator``, ``trader``, ``querier``, and
-          ``group-querier``.
+        :arg roles: Roles for this user (values must be from
+          :data:`resources.USER_ROLES`).
         :type roles: iterable(str)
 
         :return: A user resource.
