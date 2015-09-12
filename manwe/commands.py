@@ -11,6 +11,7 @@ Todo: Move some of the docstring from the _old_population_study.py file here.
 
 
 import argparse
+import getpass
 import os
 import re
 import sys
@@ -262,14 +263,19 @@ def show_user(session, uri):
     print 'Roles:  %s' % ', '.join(sorted(user.roles))
 
 
-def add_user(session, login, password, name=None, **kwargs):
+def add_user(session, login, name=None, **kwargs):
     """
-    Add an API user.
+    Add an API user (queries for password).
     """
     name = name or login
 
     if not re.match('[a-zA-Z][a-zA-Z0-9._-]*$', login):
         raise UserError('User login must match "[a-zA-Z][a-zA-Z0-9._-]*"')
+
+    password = getpass.getpass('Please provide a password for the new user: ')
+    password_control = getpass.getpass('Repeat: ')
+    if password != password_control:
+        raise UserError('Passwords did not match')
 
     # Todo: Define roles as constant.
     roles = ('admin', 'importer', 'annotator', 'trader', 'querier',
@@ -612,8 +618,6 @@ def main():
     p.add_argument(
         'login', metavar='LOGIN', type=str, help='user login')
     p.add_argument(
-        'password', metavar='PASSWORD', type=str, help='user password')
-    p.add_argument(
         '-n', '--name', metavar='NAME', dest='name', type=str,
         help='user name (default: LOGIN)')
     p.add_argument(
@@ -699,7 +703,7 @@ def main():
                   **{k: v for k, v in vars(args).items()
                      if k not in ('config', 'func', 'subcommand')})
     except UserError as e:
-        parser.error(e)
+        abort(e)
     except UnauthorizedError:
         abort('Authentication is needed, please make sure you have the '
               'correct authentication token defined in "%s"'
