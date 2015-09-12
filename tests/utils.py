@@ -113,6 +113,13 @@ class TestEnvironment(object):
         return self._uri_for(varda.models.DataSource,
                              varda.api.views.data_sources_resource, **criteria)
 
+    def uri_for_group(self, **criteria):
+        """
+        Get API URI for a group.
+        """
+        return self._uri_for(varda.models.Group,
+                             varda.api.views.groups_resource, **criteria)
+
     def uri_for_sample(self, **criteria):
         """
         Get API URI for a sample.

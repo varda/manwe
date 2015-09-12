@@ -55,17 +55,20 @@ class ResourceJSONEncoder(json.JSONEncoder):
     """
     Specialized :class:`json.JSONEncoder` that can encode resources.
 
+    It also encodes all iterables (except for strings) as lists.
+
     Use like this::
 
         >>> import json
         >>> user = session.create_user('test', '***')
-        >>> json.dumps(user, cls=ResourceJSONEncoder)
-        '/users/3'
-
+        >>> json.dumps({99, user}, cls=ResourceJSONEncoder)
+        '[99, "/users/1"]'
     """
     def default(self, o):
         if isinstance(o, _Resource):
             return str(o)
+        if isinstance(o, collections.Iterable) and not isinstance(o, basestring):
+            return list(o)
         return super(ResourceJSONEncoder, self).default(o)
 
 
@@ -509,15 +512,19 @@ class Sample(_Resource):
           profile.
         :arg bool public: Whether or not this sample is public.
         :arg str notes: Human readable notes in Markdown format.
+        :arg groups: Groups this sample is part of.
+        :type groups: iterable(:class:`resources.DataSource`)
 
         :return: A sample resource.
         :rtype: :class:`resources.Sample`
         """
+        groups = groups or []
+
         data = {'name': name,
                 'pool_size': pool_size,
                 'coverage_profile': coverage_profile,
                 'public': public,
-                'groups': groups or []}
+                'groups': set(groups)}
         if notes is not None:
             data.update(notes=notes)
         return super(Sample, cls).create(session, data=data)
@@ -538,19 +545,19 @@ class Sample(_Resource):
     @groups.setter
     def groups(self, groups):
         self._dirty.add('groups')
-        self._fields['groups'] = list(groups)
+        self._fields['groups'] = set(groups)
 
     def add_group(self, group):
         self._dirty.add('groups')
         groups = set(self._fields['groups'])
         groups.add(group)
-        self._fields['groups'] = list(groups)
+        self._fields['groups'] = groups
 
     def remove_group(self, group):
         self._dirty.add('groups')
         groups = set(self._fields['groups'])
         groups.remove(group)
-        self._fields['groups'] = list(groups)
+        self._fields['groups'] = groups
 
 
 class SampleCollection(_ResourceCollection):
@@ -559,7 +566,12 @@ class SampleCollection(_ResourceCollection):
     returning :class:`Sample` instances.
     """
     resource_class = Sample
-    _accepted_args = ('user',)
+    _accepted_args = ('groups', 'user')
+
+    def __init__(self, session, groups=None, **kwargs):
+        if groups is not None:
+            kwargs.update(groups=set(groups))
+        super(SampleCollection, self).__init__(session, **kwargs)
 
 
 class User(_Resource):
@@ -586,14 +598,17 @@ class User(_Resource):
         :arg roles: Roles for this user. Possible values are ``admin``,
           ``importer``, ``annotator``, ``trader``, ``querier``, and
           ``group-querier``.
+        :type roles: iterable(str)
 
         :return: A user resource.
         :rtype: :class:`resources.User`
         """
+        roles = roles or []
+
         data = {'login': login,
                 'password': password,
                 'name': name or login,
-                'roles': roles or []}
+                'roles': set(roles)}
         if email is not None:
             data.update(email=email)
         return super(User, cls).create(session, data=data)
@@ -609,19 +624,19 @@ class User(_Resource):
     @roles.setter
     def roles(self, roles):
         self._dirty.add('roles')
-        self._fields['roles'] = list(roles)
+        self._fields['roles'] = set(roles)
 
     def add_role(self, role):
         self._dirty.add('roles')
         roles = set(self._fields['roles'])
         roles.add(role)
-        self._fields['roles'] = list(roles)
+        self._fields['roles'] = roles
 
     def remove_role(self, role):
         self._dirty.add('roles')
         roles = set(self._fields['roles'])
         roles.remove(role)
-        self._fields['roles'] = list(roles)
+        self._fields['roles'] = roles
 
 
 class UserCollection(_ResourceCollection):
