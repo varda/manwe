@@ -333,15 +333,14 @@ class TestVariant(object):
                       chromosome='chr5',
                       position=45353,
                       reference='AT',
-                      observed='TA',
-                      global_frequency=(0.4, [0.3, 0.1]),
-                      sample_frequency=[(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])])
+                      observed='TA')
 
         variant = resources.Variant(None, fields)
         assert variant.uri == '/variants/3'
+        assert variant.chromosome == 'chr5'
         assert variant.position == 45353
-        assert variant.global_frequency == (0.4, [0.3, 0.1])
-        assert variant.sample_frequency == [(0.4, [0.3, 0.1]), (0.4, [0.3, 0.1])]
+        assert variant.reference == 'AT'
+        assert variant.observed == 'TA'
 
 
 class TestVariation(object):

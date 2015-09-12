@@ -110,12 +110,8 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
     """
     Add sample and import variation and coverage files.
     """
-    groups = groups or []
     vcf_files = vcf_files or []
     bed_files = bed_files or []
-
-    if pool_size < 1:
-        raise UserError('Pool size should be at least 1')
 
     if not no_coverage_profile and not bed_files:
         raise UserError('Expected at least one BED file')
@@ -128,12 +124,8 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
                    ({'data': open(bed_file)}, bed_file)
                    for bed_file in bed_files]
 
-    groups = [session.group(uri) for uri in groups]
-    sample = session.create_sample(name, groups=groups, pool_size=pool_size,
-                                   coverage_profile=not no_coverage_profile,
-                                   public=public)
-
-    log('Added sample: %s' % sample.uri)
+    add_sample(session, name, groups=groups, pool_size=pool_size,
+               public=public, no_coverage_profile=no_coverage_profile)
 
     for source, filename in vcf_sources:
         data_source = session.create_data_source(
@@ -280,7 +272,8 @@ def add_user(session, login, password, name=None, **kwargs):
         raise UserError('User login must match "[a-zA-Z][a-zA-Z0-9._-]*"')
 
     # Todo: Define roles as constant.
-    roles = ('admin', 'importer', 'annotator', 'trader')
+    roles = ('admin', 'importer', 'annotator', 'trader', 'querier',
+             'group-querier')
     selected_roles = [role for role in roles if kwargs.get('role_' + role)]
 
     user = session.create_user(login, password, name=name, roles=selected_roles)
@@ -319,20 +312,17 @@ def data_source_data(session, uri):
         sys.stdout.write(chunk)
 
 
-def annotate_variation(session, vcf_file, data_uploaded=False,
-                       no_global_frequency=False, sample_frequency=None):
+def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
     """
     Annotate variantion file.
     """
-    sample_frequency = sample_frequency or []
+    queries = queries or {}
 
     # Todo: Nice error if file cannot be read.
     if data_uploaded:
         source = {'local_file': vcf_file}
     else:
         source = {'data': open(vcf_file)}
-
-    sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
     data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
@@ -341,25 +331,21 @@ def annotate_variation(session, vcf_file, data_uploaded=False,
         **source)
     log('Added data source: %s' % data_source.uri)
     annotation = session.create_annotation(
-        data_source, global_frequency=not no_global_frequency,
-        sample_frequency=sample_frequency)
+        data_source, queries=queries)
     log('Started annotation: %s' % annotation.uri)
 
 
-def annotate_regions(session, bed_file, data_uploaded=False,
-                     no_global_frequency=False, sample_frequency=None):
+def annotate_regions(session, bed_file, data_uploaded=False, queries=None):
     """
     Annotate regions file.
     """
-    sample_frequency = sample_frequency or []
+    queries = queries or {}
 
     # Todo: Nice error if file cannot be read.
     if data_uploaded:
         source = {'local_file': bed_file}
     else:
         source = {'data': open(bed_file)}
-
-    sample_frequency = [session.sample(uri) for uri in sample_frequency]
 
     data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
@@ -368,8 +354,7 @@ def annotate_regions(session, bed_file, data_uploaded=False,
         **source)
     log('Added data source: %s' % data_source.uri)
     annotation = session.create_annotation(
-        data_source, global_frequency=not no_global_frequency,
-        sample_frequency=sample_frequency)
+        data_source, queries=queries)
     log('Started annotation: %s' % annotation.uri)
 
 
@@ -417,6 +402,28 @@ def main():
     """
     Manwë command line interface.
     """
+    class UpdateAction(argparse.Action):
+        """
+        Custom argparse action to store a pair of values as key and value in a
+        dictionary.
+
+        Example usage::
+
+            >>> p.add_argument(
+            ...     '-c', dest='flower_colors', nargs=2,
+            ...     metavar=('FLOWER', 'COLOR'), action=UpdateAction,
+            ...     help='set flower color (multiple allowed)')
+        """
+        def __init__(self, *args, **kwargs):
+            if kwargs.get('nargs') != 2:
+                raise ValueError('nargs for update actions must be 2')
+            super(UpdateAction, self).__init__(*args, **kwargs)
+        def  __call__(self, parser, namespace, values, option_string=None):
+            key, value = values
+            d = getattr(namespace, self.dest) or {}
+            d[key] = value
+            setattr(namespace, self.dest, d)
+
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument(
         '--config', metavar='CONFIG_FILE', type=str, dest='config',
@@ -619,6 +626,12 @@ def main():
     p.add_argument(
         '--trader', dest='role_trader', action='store_true',
         help='user has trader role')
+    p.add_argument(
+        '--querier', dest='role_querier', action='store_true',
+        help='user has querier role')
+    p.add_argument(
+        '--group-querier', dest='role_group-querier', action='store_true',
+        help='user has group-querier role')
 
     # Subparsers for 'data-sources'.
     s = subparsers.add_parser(
@@ -657,12 +670,9 @@ def main():
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
     p.add_argument(
-        '-n', '--no-global-frequencies', dest='no_global_frequency',
-        action='store_true', help='do not annotate with global frequencies')
-    p.add_argument(
-        '-s', '--sample-frequencies', metavar='URI', dest='sample_frequency',
-        nargs='+', required=False, default=[],
-        help='annotate with frequencies over these samples')
+        '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
+        metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
+        'one allowed)')
 
     # Subparser 'annotate-bed'.
     p = subparsers.add_parser(

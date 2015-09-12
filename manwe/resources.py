@@ -15,7 +15,7 @@ import dateutil.parser
 import werkzeug.datastructures
 import werkzeug.http
 
-from .errors import NotFoundError, UnsatisfiableRangeError
+from .errors import UnsatisfiableRangeError
 
 
 COLLECTION_CACHE_SIZE = 20
@@ -308,26 +308,28 @@ class Annotation(_TaskedResource):
     _immutable = ('uri', 'original_data_source', 'annotated_data_source')
 
     @classmethod
-    def create(cls, session, data_source, global_frequency=True,
-               sample_frequency=None):
+    def create(cls, session, data_source, name=None, queries=None):
         """
         Create an annotation resource.
 
         :arg data_source: Data source to annotate.
         :type data_source: :class:`resources.DataSource`
-        :arg global_frequency: Whether or not global frequences must be
-          calculated.
-        :type global_frequency: bool
-        :arg sample_frequency:
-        :type sample_frequency: list(:class:`resources.Sample`)
+        :arg name: Human readable annotation name.
+        :type name: str
+        :arg queries: Sample queries to calculate variant frequencies over.
+          Keys are query identifiers (alphanumeric) and values are query
+          expressions.
+        :type queries: dict(str, str)
 
         :return: An annotation resource.
         :rtype: :class:`resources.Annotation`
         """
-        sample_frequency = sample_frequency or []
+        queries = queries or {}
         data = {'data_source': data_source,
-                'global_frequency': global_frequency,
-                'sample_frequency': sample_frequency}
+                'queries': [{'name': k, 'expression': v}
+                            for k, v in queries.items()]}
+        if name is not None:
+            data.update(name=name)
         return super(Annotation, cls).create(session, data=data)
 
     @property
@@ -582,7 +584,8 @@ class User(_Resource):
         :arg str name: Human readable user name.
         :arg str email: User e-mail address.
         :arg roles: Roles for this user. Possible values are ``admin``,
-          ``importer``, ``anotator``, and ``trader``.
+          ``importer``, ``annotator``, ``trader``, ``querier``, and
+          ``group-querier``.
 
         :return: A user resource.
         :rtype: :class:`resources.User`
@@ -634,9 +637,7 @@ class Variant(_Resource):
     Class for representing a variant resource.
     """
     key = 'variant'
-    # Todo: The API for this resource has been changed.
-    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed',
-                  'global_frequency', 'sample_frequency')
+    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed')
 
     @classmethod
     def create(cls, session, chromosome, position, reference='', observed=''):
@@ -656,6 +657,29 @@ class Variant(_Resource):
                 'reference': reference,
                 'observed': observed}
         return super(Variant, cls).create(session, data=data)
+
+    def annotate(self, queries=None):
+        """
+        Annotate this variant with the observed frequencies over sets of
+        samples
+
+        :arg queries: Sample queries to calculate variant frequencies over.
+          Keys are query identifiers (alphanumeric) and values are query
+          expressions.
+        :type queries: dict(str, str)
+
+        :return: Variant observation frequencies. Keys are query identifiers
+          and values are dictionaries with `coverage`, `frequency`,
+           `frequency_het`, and `frequency_hom`.
+        :rtype: dict(str, dict)
+        """
+        queries = queries or {}
+
+        variant = self.session.get(
+            uri=self.uri,
+            data={'queries': [{'name': k, 'expression': v}
+                              for k, v in queries.items()]}).json()['variant']
+        return variant['annotations']
 
 
 class VariantCollection(_ResourceCollection):
