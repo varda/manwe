@@ -467,8 +467,8 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--groups', metavar='URI', nargs='+', default=[], required=False,
-        help='sample groups')
+        '--group', dest='groups', metavar='URI', action='append',
+        help='sample group (more than one allowed)')
     p.add_argument(
         '-s', '--pool-size', dest='pool_size', default=1, type=int,
         help='number of individuals in sample (default: 1)')
@@ -488,14 +488,16 @@ def main():
     p.add_argument(
         'name', metavar='NAME', type=str, help='sample name')
     p.add_argument(
-        '--groups', metavar='URI', nargs='+', default=[], required=False,
-        help='sample groups')
+        '--group', dest='groups', metavar='URI', action='append',
+        help='sample group (more than one allowed)')
     p.add_argument(
-        '--vcf', metavar='VCF_FILE', dest='vcf_files', nargs='+',
-        required=True, help='file in VCF 4.1 format to import variants from')
+        '--vcf', metavar='VCF_FILE', dest='vcf_files', action='append',
+        required=True, help='file in VCF 4.1 format to import variants from '
+        '(more than one allowed)')
     p.add_argument(
-        '--bed', metavar='BED_FILE', dest='bed_files', nargs='+', default=[],
-        required=False, help='file in BED format to import covered regions from')
+        '--bed', metavar='BED_FILE', dest='bed_files', action='append',
+        help='file in BED format to import covered regions from (more than '
+        'one allowed)')
     p.add_argument(
         '-u', '--data-uploaded', dest='data_uploaded', action='store_true',
         help='data files are already uploaded to the server')
