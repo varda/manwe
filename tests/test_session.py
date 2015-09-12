@@ -77,6 +77,59 @@ class TestSession(utils.TestEnvironment):
         with pytest.raises(StopIteration):
             next(samples_admin)
 
+    def test_samples_by_groups(self):
+        """
+        Filter sample collection by groups.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        a = varda.models.Group('Group A')
+        b = varda.models.Group('Group B')
+
+        varda.db.session.add(a)
+        varda.db.session.add(b)
+        varda.db.session.add_all(
+            varda.models.Sample(admin, 'Sample A %d' % i, groups=[a])
+            for i in range(20))
+        varda.db.session.add_all(
+            varda.models.Sample(admin, 'Sample B %d' % i, groups=[b])
+            for i in range(20))
+        varda.db.session.add_all(
+            varda.models.Sample(admin, 'Sample AB %d' % i, groups=[a, b])
+            for i in range(20))
+        varda.db.session.commit()
+
+        a = self.session.group(self.uri_for_group(name='Group A'))
+        b = self.session.group(self.uri_for_group(name='Group B'))
+
+        # All samples.
+        samples = self.session.samples()
+        assert samples.size == 60
+
+        # Group A samples.
+        samples_a = self.session.samples(groups=[a])
+        assert samples_a.size == 40
+        assert samples_a.groups == {a}
+        sample = next(samples_a)
+        assert any(g == a for g in sample.groups)
+        assert sample.name.startswith('Sample A ') or sample.name.startswith('Sample AB ')
+
+        # Group B samples.
+        samples_b = self.session.samples(groups={b})
+        assert samples_b.size == 40
+        assert samples_b.groups == {b}
+        sample = next(samples_b)
+        assert any(g == b for g in sample.groups)
+        assert sample.name.startswith('Sample B ') or sample.name.startswith('Sample AB ')
+
+        # Group A and B samples.
+        samples_ab = self.session.samples(groups=[a, b])
+        assert samples_ab.size == 20
+        assert samples_ab.groups == {a, b}
+        sample = next(samples_ab)
+        assert any(g == a for g in sample.groups)
+        assert any(g == b for g in sample.groups)
+        assert sample.name.startswith('Sample AB ')
+
     def test_variant_annotate(self):
         """
         Annotate a variant.

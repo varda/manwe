@@ -566,7 +566,12 @@ class SampleCollection(_ResourceCollection):
     returning :class:`Sample` instances.
     """
     resource_class = Sample
-    _accepted_args = ('user',)
+    _accepted_args = ('groups', 'user')
+
+    def __init__(self, session, groups=None, **kwargs):
+        if groups is not None:
+            kwargs.update(groups=set(groups))
+        super(SampleCollection, self).__init__(session, **kwargs)
 
 
 class User(_Resource):
