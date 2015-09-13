@@ -130,6 +130,7 @@ def add_sample(session, name, groups=None, pool_size=1, public=False,
                                    public=public)
 
     log('Added sample: %s' % sample.uri)
+    return sample
 
 
 def import_sample(session, name, groups=None, pool_size=1, public=False,
@@ -152,8 +153,8 @@ def import_sample(session, name, groups=None, pool_size=1, public=False,
                    ({'data': open(bed_file)}, bed_file)
                    for bed_file in bed_files]
 
-    add_sample(session, name, groups=groups, pool_size=pool_size,
-               public=public, no_coverage_profile=no_coverage_profile)
+    sample = add_sample(session, name, groups=groups, pool_size=pool_size,
+                        public=public, no_coverage_profile=no_coverage_profile)
 
     for source, filename in vcf_sources:
         data_source = session.create_data_source(
