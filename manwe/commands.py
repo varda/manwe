@@ -359,6 +359,22 @@ def data_source_data(session, uri):
         sys.stdout.write(chunk)
 
 
+def annotate_data_source(session, uri, queries=None):
+    """
+    Annotate data source.
+    """
+    queries = queries or {}
+
+    try:
+        data_source = session.data_source(uri)
+    except NotFoundError:
+        raise UserError('Data source does not exist: "%s"' % uri)
+
+    annotation = session.create_annotation(
+        data_source, queries=queries)
+    log('Started annotation: %s' % annotation.uri)
+
+
 def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
     """
     Annotate variation file.
@@ -716,6 +732,19 @@ def main():
     p.set_defaults(func=data_source_data)
     p.add_argument(
         'uri', metavar='URI', type=str, help='data source')
+
+    # Subparser 'data-sources annotate'.
+    p = s.add_parser(
+        'annotate', help='annotate data source with frequencies',
+        description=annotate_data_source.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=annotate_data_source)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='data source')
+    p.add_argument(
+        '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
+        metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
+        'one allowed)')
 
     # Subparser 'annotate-vcf'.
     p = subparsers.add_parser(
