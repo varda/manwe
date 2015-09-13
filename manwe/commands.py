@@ -310,6 +310,24 @@ def add_user(session, login, name=None, roles=None):
     log('Added user: %s' % user.uri)
 
 
+def list_data_sources(session, user=None):
+    """
+    List data sources.
+    """
+    filters = {}
+    if user:
+        filters.update(user=user)
+
+    data_sources = session.data_sources(**filters)
+
+    for i, data_source in enumerate(data_sources):
+        if i:
+            print
+        print 'Data source:  %s' % data_source.uri
+        print 'Name:         %s' % data_source.name
+        print 'Filetype:     %s' % data_source.filetype
+
+
 def show_data_source(session, uri):
     """
     Show data source details.
@@ -649,6 +667,7 @@ def main():
     p.set_defaults(func=show_user)
     p.add_argument('uri', metavar='URI', type=str, help='user')
 
+    # Subparser 'users add'.
     p = s.add_parser(
         'add', help='add new API user',
         description=add_user.__doc__.split('\n\n')[0],
@@ -669,6 +688,16 @@ def main():
         'data-sources', help='manage data sources',
         description='Manage data source resources.'
     ).add_subparsers()
+
+    # Subparser 'data-sources list'.
+    p = s.add_parser(
+        'list', help='list data sources',
+        description=list_data_sources.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=list_data_sources)
+    p.add_argument(
+        '-u', '--user', dest='user', metavar='URI',
+        help='filter data sources by user')
 
     # Subparser 'data-sources show'.
     p = s.add_parser(

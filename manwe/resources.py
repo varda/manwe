@@ -470,6 +470,7 @@ class DataSourceCollection(_ResourceCollection):
     returning :class:`DataSource` instances.
     """
     resource_class = DataSource
+    _accepted_args = ('user',)
 
 
 class Group(_Resource):
