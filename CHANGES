@@ -7,7 +7,7 @@ Here you can see the full list of changes between each Manwë release.
 Version 1.0.0
 -------------
 
-Release date to be decided.
+Released on September 13th 2015.
 
 - Bump API compatibility to `>=2.1.0,<3.0.0`.
 - Many new functions in a more complete command line interface.

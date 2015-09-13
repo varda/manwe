@@ -24,8 +24,8 @@ from .session import Session
 # [2] http://semver.org/
 
 
-__version_info__ = ('0', '2', '1', 'dev')
-__date__ = '31 Aug 2015'
+__version_info__ = ('1', '0', '0')
+__date__ = '13 Sep 2015'
 
 
 __version__ = '.'.join(__version_info__)
