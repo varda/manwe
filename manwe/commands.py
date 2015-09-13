@@ -74,7 +74,10 @@ def show_sample(session, uri):
     """
     Show sample details.
     """
-    sample = session.sample(uri)
+    try:
+        sample = session.sample(uri)
+    except NotFoundError:
+        raise UserError('Sample does not exist: "%s"' % uri)
 
     print 'Sample:      %s' % sample.uri
     print 'Name:        %s' % sample.name
@@ -106,7 +109,10 @@ def activate_sample(session, uri):
     """
     Activate sample.
     """
-    sample = session.sample(uri)
+    try:
+        sample = session.sample(uri)
+    except NotFoundError:
+        raise UserError('Sample does not exist: "%s"' % uri)
 
     sample.active = True
     sample.save()
@@ -190,7 +196,10 @@ def import_variation(session, uri, vcf_file, data_uploaded=False,
     else:
         source = {'data': open(vcf_file)}
 
-    sample = session.sample(uri)
+    try:
+        sample = session.sample(uri)
+    except NotFoundError:
+        raise UserError('Sample does not exist: "%s"' % uri)
 
     data_source = session.create_data_source(
         'Variants from file "%s"' % vcf_file,
@@ -214,7 +223,10 @@ def import_coverage(session, uri, bed_file, data_uploaded=False):
     else:
         source = {'data': open(bed_file)}
 
-    sample = session.sample(uri)
+    try:
+        sample = session.sample(uri)
+    except NotFoundError:
+        raise UserError('Sample does not exist: "%s"' % uri)
 
     data_source = session.create_data_source(
         'Regions from file "%s"' % bed_file,
