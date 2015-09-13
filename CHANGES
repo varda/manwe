@@ -4,10 +4,28 @@ Changelog
 Here you can see the full list of changes between each Manwë release.
 
 
-Version 0.2.1
+Version 1.0.1
 -------------
 
 Release date to be decided.
+
+
+Version 1.0.0
+-------------
+
+Released on September 13th 2015.
+
+- Bump API compatibility to `>=2.1.0,<3.0.0`.
+- Many new functions in a more complete command line interface.
+- Restructure command line interface.
+- Support more collection filters.
+- Improve handling fields of type set.
+- Support for annotation queries.
+- Support for sample groups.
+- Implement equality check on resources.
+- Better discoverability of API (tab completion of the session object).
+- New and simplified configuration file format (it is a Python module).
+- Refactored and more complete unit tests.
 
 
 Version 0.2.0
