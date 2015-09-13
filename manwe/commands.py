@@ -120,6 +120,23 @@ def activate_sample(session, uri):
     log('Activated sample: %s' % sample.uri)
 
 
+def annotate_sample_variations(session, uri, queries=None):
+    """
+    Annotate sample variations with variant frequencies.
+    """
+    queries = queries or {}
+
+    try:
+        sample = session.sample(uri)
+    except NotFoundError:
+        raise UserError('Sample does not exist: "%s"' % uri)
+
+    for variation in session.variations(sample=sample):
+        annotation = session.create_annotation(
+            variation.data_source, queries=queries)
+        log('Started annotation: %s' % annotation.uri)
+
+
 def add_sample(session, name, groups=None, pool_size=1, public=False,
                no_coverage_profile=False):
     """
@@ -139,6 +156,13 @@ def add_sample(session, name, groups=None, pool_size=1, public=False,
     return sample
 
 
+# TODO: Rename this and make it do all of these separate steps combined:
+# - add sample
+# - import vcf (any number)
+# - import bed (any number)
+# - activate sample (has to wait for import)
+# - annotate sample variation data sources (trader has to wait for activation)
+# TODO: Importing large files seems to consume unlimited amounts of memory.
 def import_sample(session, name, groups=None, pool_size=1, public=False,
                   no_coverage_profile=False, vcf_files=None, bed_files=None,
                   data_uploaded=False, prefer_genotype_likelihoods=False):
@@ -374,7 +398,7 @@ def data_source_data(session, uri):
 
 def annotate_data_source(session, uri, queries=None):
     """
-    Annotate data source.
+    Annotate data source with variant frequencies.
     """
     queries = queries or {}
 
@@ -388,9 +412,9 @@ def annotate_data_source(session, uri, queries=None):
     log('Started annotation: %s' % annotation.uri)
 
 
-def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
+def annotate_vcf(session, vcf_file, data_uploaded=False, queries=None):
     """
-    Annotate variation file.
+    Annotate VCF file with variant frequencies.
     """
     queries = queries or {}
 
@@ -411,9 +435,9 @@ def annotate_variation(session, vcf_file, data_uploaded=False, queries=None):
     log('Started annotation: %s' % annotation.uri)
 
 
-def annotate_regions(session, bed_file, data_uploaded=False, queries=None):
+def annotate_bed(session, bed_file, data_uploaded=False, queries=None):
     """
-    Annotate regions file.
+    Annotate BED file with variant frequencies.
     """
     queries = queries or {}
 
@@ -549,6 +573,19 @@ def main():
     p.set_defaults(func=activate_sample)
     p.add_argument(
         'uri', metavar='URI', type=str, help='sample')
+
+    # Subparser 'samples annotate-variations'.
+    p = s.add_parser(
+        'annotate-variations', help='annotate sample variations',
+        description=annotate_sample_variations.__doc__.split('\n\n')[0],
+        parents=[config_parser])
+    p.set_defaults(func=annotate_sample_variations)
+    p.add_argument(
+        'uri', metavar='URI', type=str, help='sample')
+    p.add_argument(
+        '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
+        metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
+        'one allowed)')
 
     # Subparser 'samples add'.
     p = s.add_parser(
@@ -748,7 +785,7 @@ def main():
 
     # Subparser 'data-sources annotate'.
     p = s.add_parser(
-        'annotate', help='annotate data source with frequencies',
+        'annotate', help='annotate data source',
         description=annotate_data_source.__doc__.split('\n\n')[0],
         parents=[config_parser])
     p.set_defaults(func=annotate_data_source)
@@ -761,10 +798,10 @@ def main():
 
     # Subparser 'annotate-vcf'.
     p = subparsers.add_parser(
-        'annotate-vcf', help='annotate VCF file with frequencies',
-        description=annotate_variation.__doc__.split('\n\n')[0],
+        'annotate-vcf', help='annotate VCF file',
+        description=annotate_vcf.__doc__.split('\n\n')[0],
         parents=[config_parser])
-    p.set_defaults(func=annotate_variation)
+    p.set_defaults(func=annotate_vcf)
     p.add_argument(
         'vcf_file', metavar='FILE', help='file in VCF 4.1 format to annotate')
     p.add_argument(
@@ -777,10 +814,10 @@ def main():
 
     # Subparser 'annotate-bed'.
     p = subparsers.add_parser(
-        'annotate-bed', help='annotate BED file with frequencies',
-        description=annotate_regions.__doc__.split('\n\n')[0],
+        'annotate-bed', help='annotate BED file',
+        description=annotate_bed.__doc__.split('\n\n')[0],
         parents=[config_parser])
-    p.set_defaults(func=annotate_regions)
+    p.set_defaults(func=annotate_bed)
     p.add_argument(
         'bed_file', metavar='FILE', help='file in BED format to annotate')
     p.add_argument(
