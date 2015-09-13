@@ -104,7 +104,7 @@ grepping the source code for ``Todo``.
   but this is not yet handled in Manwë.
 
 
-.. _nose: https://nose.readthedocs.org/
+.. _pytest: http://pytest.org/
 .. _PEP 8: http://www.python.org/dev/peps/pep-0008/
 .. _PEP 257: http://www.python.org/dev/peps/pep-0257/
 .. _SemVer: http://semver.org/
