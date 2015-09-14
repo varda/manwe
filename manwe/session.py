@@ -12,6 +12,7 @@ import collections
 import json
 import logging
 import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .config import Config
 from .errors import (ApiError, BadRequestError, ForbiddenError,
@@ -185,13 +186,29 @@ class Session(object):
         :raises requests.RequestException: Exception occurred while handling
             an API request.
         """
-        # Note: If the `files` keyword argument is set, we don't encode the
-        #     `data` argument as JSON, since that cannot be combined with a
-        #     file upload. The consequence is that we cannot have nested or
-        #     structured data in the `data` argument.
         headers = kwargs.pop('headers', {})
         uri = self._qualified_uri(uri)
-        if 'data' in kwargs and not 'files' in kwargs:
+        if 'files' in kwargs:
+            # If the `files` keyword argument is set, we don't encode the
+            # `data` argument as JSON, since that cannot be combined with a
+            # file upload. The consequence is that we cannot have nested or
+            # structured data in the `data` argument.
+            # We assume files can be large. Unfortunately, the requests
+            # library can only do `multipart/form-data` requests by reading
+            # the entire files in memory. The requests toolbelt library allows
+            # us to stream such requests.
+            # https://github.com/sigmavirus24/requests-toolbelt
+            def get_filename(handle, default=None):
+                if not hasattr(handle, 'name') or handle.name.startswith('<'):
+                    return default
+                return handle.name
+            fields = {k: str(v) for k, v in kwargs.get('data', {}).items()}
+            fields.update({k: (get_filename(v, k), v)
+                           for k, v in kwargs.pop('files', {}).items()})
+            encoder = MultipartEncoder(fields=fields)
+            kwargs['data'] = encoder
+            headers['Content-Type'] = encoder.content_type
+        elif 'data' in kwargs:
             kwargs['data'] = json.dumps(kwargs['data'],
                                         cls=resources.ResourceJSONEncoder)
             headers['Content-Type'] = 'application/json'
