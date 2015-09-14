@@ -88,22 +88,6 @@ Releasing a new version is done as follows:
        git commit -am 'Open development for X.Y.Z+1'
 
 
-Todo
-----
-
-These are some general todo notes. More specific notes can be found by
-grepping the source code for ``Todo``.
-
-* Use sessions from the requests library.
-* Option to pass configuration object instead of filename to Session
-  constructor, this would be preferable for downstream client applications so
-  they can read their own configuration file instead of using the Manwë
-  configuration.
-* Implement all of the Varda API.
-* Some requests are only allowed with Basic Authentication (not with a token)
-  but this is not yet handled in Manwë.
-
-
 .. _pytest: http://pytest.org/
 .. _PEP 8: http://www.python.org/dev/peps/pep-0008/
 .. _PEP 257: http://www.python.org/dev/peps/pep-0257/
