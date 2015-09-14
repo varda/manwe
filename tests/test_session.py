@@ -3,6 +3,10 @@ Unit tests for :mod:`manwe.session`.
 """
 
 
+import os
+import gzip
+import zlib
+
 import pytest
 import varda
 import varda.models
@@ -182,3 +186,34 @@ class TestSession(utils.TestEnvironment):
         assert variant.position == 800001
         assert variant.reference == ''
         assert variant.observed == 'T'
+
+    def test_upload_data_source(self):
+        """
+        Upload a data source.
+        """
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                'test.vcf')
+
+        with open(filename) as vcf_file:
+            data_source = self.session.create_data_source('Test VCF', 'vcf',
+                                                          data=vcf_file)
+
+        with open(filename) as vcf_file:
+            assert zlib.decompress(''.join(data_source.data),
+                                   16 + zlib.MAX_WBITS) == vcf_file.read()
+
+    def test_upload_data_source_gzipped(self):
+        """
+        Upload a gzipped data source.
+        """
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                'test.vcf.gz')
+
+        with open(filename, 'rb') as vcf_file:
+            data_source = self.session.create_data_source('Test VCF', 'vcf',
+                                                          gzipped=True,
+                                                          data=vcf_file)
+
+        with gzip.open(filename) as vcf_file:
+            assert zlib.decompress(''.join(data_source.data),
+                                   16 + zlib.MAX_WBITS) == vcf_file.read()
