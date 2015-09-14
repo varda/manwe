@@ -153,7 +153,6 @@ class TestSampleCollection(utils.TestEnvironment):
 
         # Total number of samples in our collection is 2 times the cache size
         # plus 3.
-        # TODO: Create samples.
         total = resources.COLLECTION_CACHE_SIZE * 2 + 3
 
         user = User.query.first()

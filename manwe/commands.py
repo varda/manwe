@@ -156,13 +156,6 @@ def add_sample(session, name, groups=None, pool_size=1, public=False,
     return sample
 
 
-# TODO: Rename this and make it do all of these separate steps combined:
-# - add sample
-# - import vcf (any number)
-# - import bed (any number)
-# - activate sample (has to wait for import)
-# - annotate sample variation data sources (trader has to wait for activation)
-# TODO: Importing large files seems to consume unlimited amounts of memory.
 def import_sample(session, name, groups=None, pool_size=1, public=False,
                   no_coverage_profile=False, vcf_files=None, bed_files=None,
                   data_uploaded=False, prefer_genotype_likelihoods=False):
