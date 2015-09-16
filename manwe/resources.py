@@ -696,7 +696,7 @@ class Variant(_Resource):
 
         :return: Variant observation frequencies. Keys are query identifiers
           and values are dictionaries with `coverage`, `frequency`,
-           `frequency_het`, and `frequency_hom`.
+          `frequency_het`, and `frequency_hom`.
         :rtype: dict(str, dict)
         """
         queries = queries or {}
