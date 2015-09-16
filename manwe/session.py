@@ -27,6 +27,66 @@ ACCEPT_VERSION = '>=2.1.0,<3.0.0'
 logger = logging.getLogger('manwe')
 
 
+class SessionMeta(type):
+    def __new__(cls, name, parents, attributes):
+        """
+        Create a new class with API call methods for all collections.
+
+        The class should have a dictionary of resources in its `_collections`
+        attribute and generic API call methods `_get_resource`,
+        `_get_collection`, and `_create_resource`.
+        """
+        for key, collection_class in attributes['_collections'].items():
+            attributes.update(
+                cls._create_collection_methods(key, collection_class))
+
+        return super(SessionMeta, cls).__new__(cls, name, parents, attributes)
+
+    @staticmethod
+    def _create_collection_methods(key, collection_class):
+        """
+        Set API call methods on this session.
+
+        We explicitely register these methods instead of dynamic dispatching
+        with `__getattr__`. This enables tab completion and `dir()` without
+        having to implement `__dir__`. We can also attach docstrings this way.
+        """
+        def get_resource(self, uri):
+            """
+            Get a resource of type {key}.
+
+            :arg str uri: URI for the {key} to retrieve.
+            :return: A resource of type {key}.
+            :rtype: :class:`resources.{collection_class.resource_class.__name__}`
+            """
+            return self._get_resource(key, uri)
+        get_resource.__doc__ = get_resource.__doc__.format(
+            key=key, collection_class=collection_class)
+
+        def get_collection(self, *args, **kwargs):
+            """
+            Get a resource collection of type {key}.
+
+            The collection can be filtered by setting any of the following
+            keyword args: {accepted_args}
+
+            :return: A resource collection of type {key}.
+            :rtype: :class:`resources.{collection_class.__name__}`
+            """
+            return self._get_collection(key, *args, **kwargs)
+        get_collection.__doc__ = get_collection.__doc__.format(
+            key=key, collection_class=collection_class,
+            accepted_args=', '.join(collection_class._accepted_args) or 'none')
+
+        def create_resource(self, *args, **kwargs):
+            return self._create_resource(key, *args, **kwargs)
+        create_resource.__doc__ = collection_class.resource_class.create.__doc__
+
+        return {key: get_resource,
+                '%ss' % key: get_collection,
+                'create_%s' % key: create_resource}
+
+
 class Session(object):
     """
     Session for interfacing the server API.
@@ -46,6 +106,7 @@ class Session(object):
         >>> sample.dirty
         False
     """
+    __metaclass__ = SessionMeta
     _collections = {c.key: c for c in (resources.AnnotationCollection,
                                        resources.CoverageCollection,
                                        resources.DataSourceCollection,
@@ -88,9 +149,6 @@ class Session(object):
                                416: UnsatisfiableRangeError})
         self.endpoints = self._lookup_endpoints()
 
-        for key in self._collections:
-            self._register_calls(key)
-
     def set_log_level(self, log_level):
         """
         Control the level of log messages you will see.
@@ -108,51 +166,6 @@ class Session(object):
         keys.add('genome')
         response = self.get(self.config.API_ROOT).json()
         return {key: response['root'][key]['uri'] for key in keys}
-
-    def _register_calls(self, key):
-        """
-        Set API call methods on this session.
-        """
-        # We explicitely register these methods instead of dynamic dispatching
-        # with `__getattr__`. This enables tab completion and `dir()` without
-        # having to implement `__dir__`. We can also attach docstrings this
-        # way.
-        collection_class = self._collections[key]
-
-        def get_resource(uri):
-            """
-            Get a {key} resource.
-
-            :arg str uri: URI for the {key} to retrieve.
-            :return: A {key} resource.
-            :rtype: :class:`resources.{collection_class.resource_class.__name__}`
-            """
-            return self._get_resource(key, uri)
-        get_resource.__doc__ = get_resource.__doc__.format(
-            key=key, collection_class=collection_class)
-
-        def get_collection(*args, **kwargs):
-            """
-            Get a {key} resource collection.
-
-            The collection can be filtered by setting any of the following
-            keyword args: {accepted_args}
-
-            :return: A {key} resource collection.
-            :rtype: :class:`resources.{collection_class.__name__}`
-            """
-            return self._get_collection(key, *args, **kwargs)
-        get_collection.__doc__ = get_collection.__doc__.format(
-            key=key, collection_class=collection_class,
-            accepted_args=', '.join(collection_class._accepted_args) or 'none')
-
-        def create_resource(*args, **kwargs):
-            return self._create_resource(key, *args, **kwargs)
-        create_resource.__doc__ = collection_class.resource_class.create.__doc__
-
-        setattr(self, key, get_resource)
-        setattr(self, '%ss' % key, get_collection)
-        setattr(self, 'create_%s' % key, create_resource)
 
     def _qualified_uri(self, uri):
         if uri.startswith('/'):
@@ -253,16 +266,3 @@ class Session(object):
     def _create_resource(self, key, *args, **kwargs):
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
-
-
-# TODO: Some kind of session class factory would probably be better. It could
-# prepopulate all API call methods, which would also make them available to
-# Sphinx class documentation and the like.
-# Session = make_session_class(resources.AnnotationCollection,
-#                              resources.CoverageCollection,
-#                              resources.DataSourceCollection,
-#                              resources.GroupCollection,
-#                              resources.SampleCollection,
-#                              resources.UserCollection,
-#                              resources.VariantCollection,
-#                              resources.VariationCollection
