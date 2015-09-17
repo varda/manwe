@@ -13,6 +13,15 @@
 
 import sys, os
 
+# Also document __init__.
+def autodoc_skip_member(app, what, name, obj, skip, options):
+    if what == 'class' and name == '__init__' and skip and obj.__doc__:
+        return False
+    return skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", autodoc_skip_member)
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
