@@ -76,14 +76,14 @@ class ResourceJSONEncoder(json.JSONEncoder):
         '[99, "/users/1"]'
     """
     def default(self, o):
-        if isinstance(o, _Resource):
+        if isinstance(o, Resource):
             return str(o)
         if isinstance(o, collections.Iterable) and not isinstance(o, basestring):
             return list(o)
         return super(ResourceJSONEncoder, self).default(o)
 
 
-class _Resource(object):
+class Resource(object):
     """
     Base class for representing server resources.
     """
@@ -144,7 +144,7 @@ class _Resource(object):
         for name in cls._immutable:
             if not hasattr(cls, name):
                 setattr(cls, name, property(getter(name)))
-        return super(_Resource, cls).__new__(cls, *args, **kwargs)
+        return super(Resource, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, session, fields):
         """
@@ -213,19 +213,19 @@ class _Resource(object):
         # Todo: On save, refresh all fields from server.
 
 
-class _TaskedResource(_Resource):
+class TaskedResource(Resource):
     """
     Base class for representing server resources with tasks.
     """
     def __new__(cls, *args, **kwargs):
         cls._immutable = cls._immutable + ('task',)
-        return super(_TaskedResource, cls).__new__(cls, *args, **kwargs)
+        return super(TaskedResource, cls).__new__(cls, *args, **kwargs)
 
 
-class _ResourceCollection(object):
+class ResourceCollection(object):
     """
     Base class for representing server resource collections, iterators
-    returning :class:`_Resource` instances.
+    returning :class:`Resource` instances.
     """
     #: Resource class to use for instantiating resources in this collection.
     resource_class = None
@@ -301,7 +301,7 @@ class _ResourceCollection(object):
 
     def next(self):
         """
-        Return the next :class:`_Resource` in the collection.
+        Return the next resource in the collection.
         """
         if not self._resources:
             self._get_resources()
@@ -314,7 +314,7 @@ class _ResourceCollection(object):
     __next__ = next
 
 
-class Annotation(_TaskedResource):
+class Annotation(TaskedResource):
     """
     Class for representing an annotation resource.
     """
@@ -357,7 +357,7 @@ class Annotation(_TaskedResource):
             self._fields['annotated_data_source']['uri'])
 
 
-class AnnotationCollection(_ResourceCollection):
+class AnnotationCollection(ResourceCollection):
     """
     Class for representing an annotation resource collection as an iterator
     returning :class:`Annotation` instances.
@@ -365,7 +365,7 @@ class AnnotationCollection(_ResourceCollection):
     resource_class = Annotation
 
 
-class Coverage(_TaskedResource):
+class Coverage(TaskedResource):
     """
     Class for representing a coverage resource.
     """
@@ -398,7 +398,7 @@ class Coverage(_TaskedResource):
         return self.session.data_source(self._fields['data_source']['uri'])
 
 
-class CoverageCollection(_ResourceCollection):
+class CoverageCollection(ResourceCollection):
     """
     Class for representing a coverage resource collection as an iterator
     returning :class:`Coverage` instances.
@@ -407,7 +407,7 @@ class CoverageCollection(_ResourceCollection):
     _accepted_args = ('sample',)
 
 
-class DataSource(_Resource):
+class DataSource(Resource):
     """
     Class for representing a data source resource.
     """
@@ -464,7 +464,7 @@ class DataSource(_Resource):
             chunk_size=DATA_BUFFER_SIZE)
 
 
-class DataSourceCollection(_ResourceCollection):
+class DataSourceCollection(ResourceCollection):
     """
     Class for representing a data source resource collection as an iterator
     returning :class:`DataSource` instances.
@@ -473,7 +473,7 @@ class DataSourceCollection(_ResourceCollection):
     _accepted_args = ('user',)
 
 
-class Group(_Resource):
+class Group(Resource):
     """
     Class for representing a group resource.
     """
@@ -495,7 +495,7 @@ class Group(_Resource):
         return super(Group, cls).create(session, data=data)
 
 
-class GroupCollection(_ResourceCollection):
+class GroupCollection(ResourceCollection):
     """
     Class for representing a group resource collection as an iterator
     returning :class:`Group` instances.
@@ -503,7 +503,7 @@ class GroupCollection(_ResourceCollection):
     resource_class = Group
 
 
-class Sample(_Resource):
+class Sample(Resource):
     """
     Class for representing a sample resource.
     """
@@ -572,7 +572,7 @@ class Sample(_Resource):
         self._fields['groups'] = groups
 
 
-class SampleCollection(_ResourceCollection):
+class SampleCollection(ResourceCollection):
     """
     Class for representing a sample resource collection as an iterator
     returning :class:`Sample` instances.
@@ -586,7 +586,7 @@ class SampleCollection(_ResourceCollection):
         super(SampleCollection, self).__init__(session, **kwargs)
 
 
-class User(_Resource):
+class User(Resource):
     """
     Class for representing a user resource.
     """
@@ -650,7 +650,7 @@ class User(_Resource):
         self._fields['roles'] = roles
 
 
-class UserCollection(_ResourceCollection):
+class UserCollection(ResourceCollection):
     """
     Class for representing a user resource collection as an iterator returning
     :class:`User` instances.
@@ -658,7 +658,7 @@ class UserCollection(_ResourceCollection):
     resource_class = User
 
 
-class Variant(_Resource):
+class Variant(Resource):
     """
     Class for representing a variant resource.
     """
@@ -708,7 +708,7 @@ class Variant(_Resource):
         return variant['annotations']
 
 
-class VariantCollection(_ResourceCollection):
+class VariantCollection(ResourceCollection):
     """
     Class for representing a variant resource collection as an iterator
     returning :class:`Variant` instances.
@@ -716,7 +716,7 @@ class VariantCollection(_ResourceCollection):
     resource_class = Variant
 
 
-class Variation(_TaskedResource):
+class Variation(TaskedResource):
     """
     Class for representing a variation resource.
     """
@@ -759,7 +759,7 @@ class Variation(_TaskedResource):
         return self.session.data_source(self._fields['data_source']['uri'])
 
 
-class VariationCollection(_ResourceCollection):
+class VariationCollection(ResourceCollection):
     """
     Class for representing a variation resource collection as an iterator
     returning :class:`Variation` instances.
