@@ -87,39 +87,20 @@ class SessionMeta(type):
                 'create_%s' % key: create_resource}
 
 
-class Session(object):
+class AbstractSession(object):
     """
-    Session for interfacing the server API.
+    Abstract session for interfacing the server API.
 
-    Example session::
-
-        >>> session = Session()
-        >>> sample = session.create_sample('Test')
-        >>> sample.uri
-        '/samples/1'
-        >>> sample.dirty
-        False
-        >>> sample.name = 'Test sample'
-        >>> sample.dirty
-        True
-        >>> sample.save()
-        >>> sample.dirty
-        False
+    Subclasses should have a dictionary of resources in their `_collections`
+    attribute.
     """
     __metaclass__ = SessionMeta
-    _collections = {c.key: c for c in (resources.AnnotationCollection,
-                                       resources.CoverageCollection,
-                                       resources.DataSourceCollection,
-                                       resources.GroupCollection,
-                                       resources.SampleCollection,
-                                       resources.UserCollection,
-                                       resources.VariantCollection,
-                                       resources.VariationCollection)}
+    _collections = {}
 
     def __init__(self, api_root=None, token=None, config=None,
                  log_level=logging.INFO):
         """
-        Create a `Session`.
+        Create a session.
 
         :arg api_root: Varda API root endpoint.
         :type api_root: str
@@ -266,3 +247,32 @@ class Session(object):
     def _create_resource(self, key, *args, **kwargs):
         return self._collections[key].resource_class.create(self, *args,
                                                             **kwargs)
+
+
+class Session(AbstractSession):
+    """
+    Session for interfacing the server API.
+
+    Example session::
+
+        >>> session = Session()
+        >>> sample = session.create_sample('Test')
+        >>> sample.uri
+        '/samples/1'
+        >>> sample.dirty
+        False
+        >>> sample.name = 'Test sample'
+        >>> sample.dirty
+        True
+        >>> sample.save()
+        >>> sample.dirty
+        False
+    """
+    _collections = {c.key: c for c in (resources.AnnotationCollection,
+                                       resources.CoverageCollection,
+                                       resources.DataSourceCollection,
+                                       resources.GroupCollection,
+                                       resources.SampleCollection,
+                                       resources.UserCollection,
+                                       resources.VariantCollection,
+                                       resources.VariationCollection)}
