@@ -4,6 +4,7 @@ Utilities for Manwë unit tests.
 """
 
 
+import os
 import re
 import shutil
 import tempfile
@@ -28,6 +29,7 @@ class TestEnvironment(object):
         self._varda = varda.create_app({
             'TESTING': True,
             'DATA_DIR': self._temp_dir,
+            'SECONDARY_DATA_DIR': os.path.dirname(os.path.realpath(__file__)),
             'GENOME': None,
             'REFERENCE_MISMATCH_ABORT': False,
             'SQLALCHEMY_DATABASE_URI': 'sqlite://',
@@ -105,6 +107,13 @@ class TestEnvironment(object):
     def _uri_for(self, model, resource, **criteria):
         instance = model.query.filter_by(**criteria).first()
         return self._uri_for_instance(resource, instance)
+
+    def uri_for_annotation(self, **criteria):
+        """
+        Get API URI for an annotation.
+        """
+        return self._uri_for(varda.models.Annotation,
+                             varda.api.views.annotations_resource, **criteria)
 
     def uri_for_data_source(self, **criteria):
         """

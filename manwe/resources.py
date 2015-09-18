@@ -9,19 +9,16 @@ Manwë resources.
 
 
 import collections
-import json
 
-import dateutil.parser
 import werkzeug.datastructures
 import werkzeug.http
 
 from .errors import UnsatisfiableRangeError
+from .fields import (Blob, Boolean, DateTime, Field, Integer, Link, Queries,
+                     Set, String, Task)
 
 
 COLLECTION_CACHE_SIZE = 20
-
-# This is in bytes. Should it be much higher?
-DATA_BUFFER_SIZE = 1024
 
 
 # This mirrors `varda.models.USER_ROLES`.
@@ -62,31 +59,73 @@ class classproperty(object):
         return self.getter(owner)
 
 
-class ResourceJSONEncoder(json.JSONEncoder):
-    """
-    Specialized :class:`json.JSONEncoder` that can encode resources.
+class ResourceMeta(type):
+    def __new__(cls, name, parents, attributes):
+        """
+        Create a new class with field getters and setters.
 
-    It also encodes all iterables (except for strings) as lists.
+        Similar to `how Django model fields work
+        <https://code.djangoproject.com/wiki/DevModelCreation>`, this sets up
+        getters and setters on resource classes. The field values are stored
+        in the `_values` instance attribute.
+        """
+        fields = set()
 
-    Use like this::
+        # Inherit all fields from parent classes.
+        fields.update(*[parent._fields for parent in parents
+                        if isinstance(parent, ResourceMeta)])
 
-        >>> import json
-        >>> user = session.create_user('test', '***')
-        >>> json.dumps({99, user}, cls=ResourceJSONEncoder)
-        '[99, "/users/1"]'
-    """
-    def default(self, o):
-        if isinstance(o, Resource):
-            return str(o)
-        if isinstance(o, collections.Iterable) and not isinstance(o, basestring):
-            return list(o)
-        return super(ResourceJSONEncoder, self).default(o)
+        for name_, attribute in attributes.items():
+            if not isinstance(attribute, Field):
+                continue
+
+            # Store the name under which the field is available on the class
+            # in the field itself.
+            attribute.name = name_
+            fields.add(attribute)
+
+            # Hidden field definitions are useful for resource creation
+            # arguments which are not available in the resulting resource's
+            # representation.
+            if attribute.hidden:
+                continue
+
+            if attribute.mutable:
+                attributes[name_] = property(cls._getter(attribute),
+                                             cls._setter(attribute),
+                                             doc=attribute.doc)
+            else:
+                attributes[name_] = property(cls._getter(attribute),
+                                             doc=attribute.doc)
+
+        attributes['_fields'] = fields
+
+        return super(ResourceMeta, cls).__new__(cls, name, parents, attributes)
+
+    @staticmethod
+    def _getter(field):
+        def getter_for_field(self):
+            return field.to_python(self._values.get(field.name),
+                                   self.session)
+        return getter_for_field
+
+    @staticmethod
+    def _setter(field):
+        def setter_for_field(self, value):
+            # TODO: validation?
+            self._dirty.add(field.name)
+            self._values[field.name] = field.from_python(value)
+        return setter_for_field
 
 
 class Resource(object):
     """
     Base class for representing server resources.
+
+    Resource fields are defined as class attributes by :mod:`Field` instances.
     """
+    __metaclass__ = ResourceMeta
+
     # Todo: Use embedded resources to avoid many separate requests.
 
     # Key for this resource type is used in API response objects as index for
@@ -98,101 +137,75 @@ class Resource(object):
     #: Key for this resource type.
     key = None
 
-    # Todo: I think it would be nice to have field classes (`Field`,
-    #     `DateField`, etc) with kwarg `mutable=True` instead of the less
-    #     flexible field name tuples `_mutable` and `_immutable`. We could
-    #     generalize getters and setters of more complex types without having
-    #     to write them in the subclasses.
-    # Note: The `_mutable` tuple must always contain at least ``uri``.
-    # Note: Any structured fields (such as lists and dicts) defined in
-    #     `_mutable`, won't just work with the getters and setters defined
-    #     for them automatically below. This is because they can be modified
-    #     without touching the setter method.
-    #     Example: calling `resource.list_field.append(value)` will not add
-    #     the `list_field` to the set of dirty fields.
-    #     One solution for this, as implemented for the `roles` field for the
-    #     `User` resource, is to have an immutable field value (frozenset in
-    #     this case) and define separate methods for updating the field.
-    #     Another approach would be something similar to the `MutableDict`
-    #     type in SQLAlchemy [1].
-    #
-    # [1] http://docs.sqlalchemy.org/en/latest/orm/extensions/mutable.html
-    _mutable = ()
-    _immutable = ()
+    #: Resource URI.
+    uri = String()
 
-    def __new__(cls, *args, **kwargs):
-        """
-        Register getters (and setters) for the list of names defined in the
-        `_mutable` and `_immutable` class properties. The corresponding values
-        are found in the `_fields` instance variable.
-        """
-        def getter(name):
-            def getter_for_name(self):
-                return self._fields.get(name)
-            return getter_for_name
-        def setter(name):
-            def setter_for_name(self, value):
-                self._dirty.add(name)
-                self._fields[name] = value
-            return setter_for_name
-        # Note that we only register the getters/setters if the attribute is
-        # not yet set. This makes it possible to implement specific behaviours
-        # in subclasses by 'overriding' them.
-        for name in cls._mutable:
-            if not hasattr(cls, name):
-                setattr(cls, name, property(getter(name), setter(name)))
-        for name in cls._immutable:
-            if not hasattr(cls, name):
-                setattr(cls, name, property(getter(name)))
-        return super(Resource, cls).__new__(cls, *args, **kwargs)
-
-    def __init__(self, session, fields):
+    def __init__(self, session, values):
         """
         Create a representation for a server resource from a dictionary.
 
         :arg session: Manwë session.
         :type session: :class:`manwe.Session`
-        :arg fields: Dictionary with field names (the dictionary keys) and
-            their values for this resource.
-        :type fields: dict
+        :arg values: Dictionary with field values (using API keys and values).
+        :type values: dict
         """
         #: The session this resource is attached to as
         #: :class:`session.Session <Session>`.
         self.session = session
+
+        # API values, not Python values.
+        self._values = {field.name: values[field.key]
+                        if field.key in values else field.default
+                        for field in self._fields}
+
+        # Names of fields that are dirty.
         self._dirty = set()
-        self._fields = fields
 
     @classmethod
-    def create(cls, session, data=None, files=None):
+    def create(cls, session, values=None, files=None):
         """
         Create a new resource on the server and return a representation for
         it.
 
+        :arg session: Manwë session.
+        :type session: :class:`manwe.Session`
+        :arg values: Dictionary with field values (using Python names and
+          values).
+        :type values: dict
+        :arg files: Open file objects.
+        :type files: dict(str, file-like object)
+
         Every subclass should override this with an informative docstring.
         """
+        values = values or {}
+
+        data = {field.key: field.from_python(values[field.name])
+                for field in cls._fields
+                if field.name in values}
+
         kwargs = {'data': data}
         if files:
             kwargs.update(files=files)
+
         response = session.post(session.endpoints[cls.key + '_collection'],
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
-    # Serialization of values by `urllib.quote_plus` uses `str()` if all else
-    # fails. This is used by `urllib.encode`, which in turn is used by
-    # `requests.request` to serialize the `data` argument.
-    # Implementing `__str__` here effectively means implementing what gets
-    # send to the server if we pass a resource with the request.
-    # Note that this doesn't work for `json.dumps`, where we really have to
-    # implement a `json.JSONEncoder.default` method to serialize resources.
-    # For this, a specialized encoder class is provided above as
-    # `ResourceJSONEncoder`.
-    # Todo: Have a more informative `__repr__` implementation.
+    def __repr__(self):
+        if self._values:
+            values = ' ' + ' '.join('%s=%r' % x for x in self._values.items())
+        else:
+            values = ''
+        return '<%s%s>' % (self.__class__.__name__, values)
+
     def __str__(self):
-        return self._fields['uri']
+        return self.uri
+
+    def __hash__(self):
+        return hash(self.uri)
 
     def __eq__(self, other):
-        return (self._fields['uri'] and other._fields['uri'] and
-                self._fields['uri'] == other._fields['uri'])
+        return self.uri and other.uri and self.uri == other.uri
 
     @property
     def dirty(self):
@@ -202,41 +215,61 @@ class Resource(object):
         """
         return bool(self._dirty)
 
+    def refresh(self):
+        """
+        TODO
+        """
+        raise NotImplementedError()
+        self._dirty.clear()
+
     def save(self):
         """
         Save any unsaved changes on this resource.
         """
         if self.dirty:
-            self.session.patch(self._fields['uri'],
-                               data={k: self._fields[k] for k in self._dirty})
+            self.session.patch(self.uri,
+                               data={field.key: getattr(self, field.name)
+                                     for field in self._fields
+                                     if field.name in self._dirty})
             self._dirty.clear()
-        # Todo: On save, refresh all fields from server.
+        # Todo: On save, refresh all fields from server?
 
 
 class TaskedResource(Resource):
     """
     Base class for representing server resources with tasks.
     """
-    def __new__(cls, *args, **kwargs):
-        cls._immutable = cls._immutable + ('task',)
-        return super(TaskedResource, cls).__new__(cls, *args, **kwargs)
+    # Todo: Implement task specific functionality.
+    task = Task()
 
 
 class ResourceCollection(object):
     """
     Base class for representing server resource collections, iterators
     returning :class:`Resource` instances.
+
+    Collection filters are defined as class attributes by :mod:`Field`
+    instances (and must not be mutable).
     """
+    __metaclass__ = ResourceMeta
+
     #: Resource class to use for instantiating resources in this collection.
     resource_class = None
 
-    # Names by which the collection can be parameterized.
-    _accepted_args = ()
-
-    def __init__(self, session, **kwargs):
+    def __init__(self, session, values=None):
         """
         Create a representation for a server resource collection.
+
+        :arg session: Manwë session.
+        :type session: :class:`manwe.Session`
+        :arg values: Dictionary with field values (using Python names and
+          values).
+        :type values: dict
+
+        Every subclass should override this with an informative docstring.
         """
+        values = values or {}
+
         #: The session this resource collection  is attached to as
         #: :class:`session.Session <Session>`.
         self.session = session
@@ -247,7 +280,14 @@ class ResourceCollection(object):
         #: why there is not `__len__` property defined.
         self.size = 0
 
-        self._args = {arg: kwargs.get(arg) for arg in self._accepted_args}
+        # API values, not Python values.
+        self._values = {field.name: field.from_python(values[field.name])
+                        if field.name in values else field.default
+                        for field in self._fields}
+
+        # This is not used.
+        self._dirty = set()
+
         self._next = 0
         self._resources = collections.deque()
         self._get_resources()
@@ -259,16 +299,15 @@ class ResourceCollection(object):
         """
         return cls.resource_class.key
 
+    def __repr__(self):
+        if self._values:
+            values = ' ' + ' '.join('%s=%r' % x for x in self._values.items())
+        else:
+            values = ''
+        return '<%s%s>' % (self.__class__.__name__, values)
+
     def __iter__(self):
         return self
-
-    def __getattr__(self, name):
-        # This enables us to do `variations.sample` if `variations` is a
-        # collection created with a `sample` argument.
-        try:
-            return self._args[name]
-        except KeyError:
-            raise AttributeError
 
     def _get_resources(self):
         if self._next is None:
@@ -278,7 +317,7 @@ class ResourceCollection(object):
         try:
             response = self.session.get(
                 uri=self.session.endpoints[self.key + '_collection'],
-                data={arg: value for arg, value in self._args.items()
+                data={field: value for field, value in self._values.items()
                       if value is not None},
                 headers={'Range': range_.to_header()})
         except UnsatisfiableRangeError:
@@ -313,13 +352,31 @@ class ResourceCollection(object):
     # Python 3 compatibility.
     __next__ = next
 
+    def reset(self):
+        """
+        TODO
+        """
+        raise NotImplementedError()
+
 
 class Annotation(TaskedResource):
     """
     Class for representing an annotation resource.
     """
     key = 'annotation'
-    _immutable = ('uri', 'original_data_source', 'annotated_data_source')
+
+    original_data_source = Link(
+        'data_source',
+        doc='Original data source (:class:`DataSource` instance).')
+    annotated_data_source = Link(
+        'data_source',
+        doc='Annotated data source (:class:`DataSource` instance).')
+
+    # These hidden fields define arguments for create() which are not in the
+    # resulting resource's representation.
+    data_source = Link('data_source', hidden=True)
+    name = String(hidden=True)
+    queries = Queries(hidden=True)
 
     @classmethod
     def create(cls, session, data_source, name=None, queries=None):
@@ -339,22 +396,12 @@ class Annotation(TaskedResource):
         :rtype: :class:`resources.Annotation`
         """
         queries = queries or {}
-        data = {'data_source': data_source,
-                'queries': [{'name': k, 'expression': v}
-                            for k, v in queries.items()]}
+
+        values = {'data_source': data_source,
+                  'queries': queries}
         if name is not None:
-            data.update(name=name)
-        return super(Annotation, cls).create(session, data=data)
-
-    @property
-    def original_data_source(self):
-        return self.session.data_source(
-            self._fields['original_data_source']['uri'])
-
-    @property
-    def annotated_data_source(self):
-        return self.session.data_source(
-            self._fields['annotated_data_source']['uri'])
+            values.update(name=name)
+        return super(Annotation, cls).create(session, values=values)
 
 
 class AnnotationCollection(ResourceCollection):
@@ -364,13 +411,26 @@ class AnnotationCollection(ResourceCollection):
     """
     resource_class = Annotation
 
+    def __init__(self, session):
+        """
+        Query an annotation resource collection.
+
+        :return: An annotation resource collection.
+        :rtype: :class:`resources.AnnotationCollection`
+        """
+        super(AnnotationCollection, self).__init__(session)
+
 
 class Coverage(TaskedResource):
     """
     Class for representing a coverage resource.
     """
     key = 'coverage'
-    _immutable = ('uri', 'sample', 'data_source')
+
+    sample = Link('sample',
+                  doc='Coverage is part of this :class:`Sample`.')
+    data_source = Link('data_source',
+                       doc='Coverage data (:class:`DataSource` instance).')
 
     @classmethod
     def create(cls, session, sample, data_source):
@@ -385,17 +445,9 @@ class Coverage(TaskedResource):
         :return: A coverage resource.
         :rtype: :class:`resources.Coverage`
         """
-        data = {'sample': sample,
-                'data_source': data_source}
-        return super(Coverage, cls).create(session, data=data)
-
-    @property
-    def sample(self):
-        return self.session.sample(self._fields['sample']['uri'])
-
-    @property
-    def data_source(self):
-        return self.session.data_source(self._fields['data_source']['uri'])
+        values = {'sample': sample,
+                  'data_source': data_source}
+        return super(Coverage, cls).create(session, values=values)
 
 
 class CoverageCollection(ResourceCollection):
@@ -404,7 +456,22 @@ class CoverageCollection(ResourceCollection):
     returning :class:`Coverage` instances.
     """
     resource_class = Coverage
-    _accepted_args = ('sample',)
+
+    sample = Link('sample',
+                  doc='Collection is filtered by this :class:`Sample`.')
+
+    def __init__(self, session, sample=None):
+        """
+        Query a coverage resource collection.
+
+        :arg sample: Filter collection by sample.
+        :type sample: :class:`resources.Sample`
+
+        :return: A coverage resource collection.
+        :rtype: :class:`resources.CoverageCollection`
+        """
+        values = {'sample': sample}
+        super(CoverageCollection, self).__init__(session, values=values)
 
 
 class DataSource(Resource):
@@ -412,9 +479,13 @@ class DataSource(Resource):
     Class for representing a data source resource.
     """
     key = 'data_source'
-    _mutable = ('name',)
-    _immutable = ('uri', 'user', 'data', 'name', 'filetype', 'gzipped',
-                  'added')
+
+    name = String(mutable=True, doc='Human readable data source name.')
+    user = Link('user', doc='Data source is owned by this :class:`User`.')
+    data = Blob(doc='Iterator yielding data as chunks.')
+    filetype = String(doc='Data filetype.')  # TODO: field type?
+    gzipped = Boolean(doc='If `True`, `data` is compressed using gzip.')
+    added = DateTime(doc='Date and time this data source was added.')
 
     @classmethod
     def create(cls, session, name, filetype, gzipped=False, data=None,
@@ -434,34 +505,17 @@ class DataSource(Resource):
         :return: A data source resource.
         :rtype: :class:`resources.DataSource`
         """
-        post_data = {'name': name,
-                     'filetype': filetype,
-                     'gzipped': gzipped}
+        values = {'name': name,
+                  'filetype': filetype,
+                  'gzipped': gzipped}
         if local_file:
-            post_data.update(local_file=local_file)
+            values.update(local_file=local_file)
         if data is None:
             files = None
         else:
             files = {'data': data}
-        return super(DataSource, cls).create(session, data=post_data,
+        return super(DataSource, cls).create(session, values=values,
                                              files=files)
-
-    @property
-    def added(self):
-        return dateutil.parser.parse(self._fields['added'])
-
-    @property
-    def user(self):
-        return self.session.user(self._fields['user']['uri'])
-
-    @property
-    def data(self):
-        """
-        Iterator over the data source data by chunks.
-        """
-        return self.session.get(self._fields['data']['uri'],
-                                stream=True).iter_content(
-            chunk_size=DATA_BUFFER_SIZE)
 
 
 class DataSourceCollection(ResourceCollection):
@@ -470,7 +524,22 @@ class DataSourceCollection(ResourceCollection):
     returning :class:`DataSource` instances.
     """
     resource_class = DataSource
-    _accepted_args = ('user',)
+
+    user = Link('user',
+                doc='Collection is filtered by this :class:`User`.')
+
+    def __init__(self, session, user=None):
+        """
+        Query a data source resource collection.
+
+        :arg user: Filter collection by user.
+        :type user: :class:`resources.User`
+
+        :return: A data source resource collection.
+        :rtype: :class:`resources.DataSourceCollection`
+        """
+        values = {'user': user}
+        super(DataSourceCollection, self).__init__(session, values=values)
 
 
 class Group(Resource):
@@ -478,8 +547,8 @@ class Group(Resource):
     Class for representing a group resource.
     """
     key = 'group'
-    _mutable = ('name',)
-    _immutable = ('uri',)
+
+    name = String(mutable=True, doc='Human readable group name.')
 
     @classmethod
     def create(cls, session, name):
@@ -491,8 +560,8 @@ class Group(Resource):
         :return: A group resource.
         :rtype: :class:`resources.Group`
         """
-        data = {'name': name}
-        return super(Group, cls).create(session, data=data)
+        values = {'name': name}
+        return super(Group, cls).create(session, values=values)
 
 
 class GroupCollection(ResourceCollection):
@@ -502,15 +571,34 @@ class GroupCollection(ResourceCollection):
     """
     resource_class = Group
 
+    def __init__(self, session):
+        """
+        Query a group resource collection.
+
+        :return: A group resource collection.
+        :rtype: :class:`resources.GroupCollection`
+        """
+        super(GroupCollection, self).__init__(session)
+
 
 class Sample(Resource):
     """
     Class for representing a sample resource.
     """
     key = 'sample'
-    _mutable = ('name', 'pool_size', 'coverage_profile', 'public', 'active',
-                'notes', 'groups')
-    _immutable = ('uri', 'user', 'added')
+
+    user = Link('user', doc='Sample is owned by this :class:`User`.')
+    name = String(mutable=True, doc='Human readable sample name.')
+    pool_size = Integer(mutable=True, doc='Number of individuals.')
+    coverage_profile = Boolean(
+        mutable=True, doc='If `True`, the sample has a coverage profile.')
+    public = Boolean(mutable=True, doc='If `True`, the sample is public.')
+    notes = String(mutable=True, doc='Human readable notes in Markdown format.')
+    groups = Set(
+        Link('group'), mutable=True,
+        doc='Sample is part of these groups (:class:`Group` instances).')
+    active = Boolean(mutable=True, doc='If `True`, the sample is active.')
+    added = DateTime(doc='Date and time this sample was added.')
 
     @classmethod
     def create(cls, session, name, pool_size=1, coverage_profile=True,
@@ -532,44 +620,14 @@ class Sample(Resource):
         """
         groups = groups or []
 
-        data = {'name': name,
-                'pool_size': pool_size,
-                'coverage_profile': coverage_profile,
-                'public': public,
-                'groups': set(groups)}
+        values = {'name': name,
+                  'pool_size': pool_size,
+                  'coverage_profile': coverage_profile,
+                  'public': public,
+                  'groups': groups}
         if notes is not None:
-            data.update(notes=notes)
-        return super(Sample, cls).create(session, data=data)
-
-    @property
-    def added(self):
-        return dateutil.parser.parse(self._fields['added'])
-
-    @property
-    def user(self):
-        return self.session.user(self._fields['user']['uri'])
-
-    @property
-    def groups(self):
-        return frozenset(self.session.group(group['uri'])
-                         for group in self._fields['groups'])
-
-    @groups.setter
-    def groups(self, groups):
-        self._dirty.add('groups')
-        self._fields['groups'] = set(groups)
-
-    def add_group(self, group):
-        self._dirty.add('groups')
-        groups = set(self._fields['groups'])
-        groups.add(group)
-        self._fields['groups'] = groups
-
-    def remove_group(self, group):
-        self._dirty.add('groups')
-        groups = set(self._fields['groups'])
-        groups.remove(group)
-        self._fields['groups'] = groups
+            values.update(notes=notes)
+        return super(Sample, cls).create(session, values=values)
 
 
 class SampleCollection(ResourceCollection):
@@ -578,12 +636,31 @@ class SampleCollection(ResourceCollection):
     returning :class:`Sample` instances.
     """
     resource_class = Sample
-    _accepted_args = ('groups', 'public', 'user')
 
-    def __init__(self, session, groups=None, **kwargs):
-        if groups is not None:
-            kwargs.update(groups=set(groups))
-        super(SampleCollection, self).__init__(session, **kwargs)
+    groups = Set(Link('group'), doc='Collection is filtered by these groups'
+                 ' (:class:`Group` instances).')
+    public = Boolean(doc='Collection is filtered by this public state.')
+    user = Link('user',
+                doc='Collection is filtered by this :class:`User`.')
+
+    def __init__(self, session, groups=None, public=None, user=None):
+        """
+        Query a sample resource collection.
+
+        :arg groups: Filter collection by groups.
+        :type groups: iterable(:class:`resources.DataSource`)
+        :arg public: Filter collection by public/non-public.
+        :type public: bool
+        :arg user: Filter collection by user.
+        :type user: :class:`resources.User`
+
+        :return: A sample resource collection.
+        :rtype: :class:`resources.SampleCollection`
+        """
+        values = {'groups': groups,
+                  'public': public,
+                  'user': user}
+        super(SampleCollection, self).__init__(session, values=values)
 
 
 class User(Resource):
@@ -591,11 +668,17 @@ class User(Resource):
     Class for representing a user resource.
     """
     key = 'user'
+
     # Todo: Should password be an ordinary field (with initial None) value
     #     like it is now? Or should we modify it through some change_password
     #     method?
-    _mutable = ('password', 'name', 'email', 'roles')
-    _immutable = ('uri', 'login', 'added')
+
+    login = String(doc='Login name.')
+    password = String(mutable=True, doc='Password used for authentication.')
+    name = String(mutable=True, doc='Human readable user name.')
+    email = String(mutable=True, doc='Email address.')
+    roles = Set(String(), mutable=True, doc='Roles for this user.')
+    added = DateTime(doc='Date and time this user was added.')
 
     @classmethod
     def create(cls, session, login, password, name=None, email=None,
@@ -616,38 +699,13 @@ class User(Resource):
         """
         roles = roles or []
 
-        data = {'login': login,
-                'password': password,
-                'name': name or login,
-                'roles': set(roles)}
+        values = {'login': login,
+                  'password': password,
+                  'name': name or login,
+                  'roles': roles}
         if email is not None:
-            data.update(email=email)
-        return super(User, cls).create(session, data=data)
-
-    @property
-    def added(self):
-        return dateutil.parser.parse(self._fields['added'])
-
-    @property
-    def roles(self):
-        return frozenset(self._fields['roles'])
-
-    @roles.setter
-    def roles(self, roles):
-        self._dirty.add('roles')
-        self._fields['roles'] = set(roles)
-
-    def add_role(self, role):
-        self._dirty.add('roles')
-        roles = set(self._fields['roles'])
-        roles.add(role)
-        self._fields['roles'] = roles
-
-    def remove_role(self, role):
-        self._dirty.add('roles')
-        roles = set(self._fields['roles'])
-        roles.remove(role)
-        self._fields['roles'] = roles
+            values.update(email=email)
+        return super(User, cls).create(session, values=values)
 
 
 class UserCollection(ResourceCollection):
@@ -657,13 +715,26 @@ class UserCollection(ResourceCollection):
     """
     resource_class = User
 
+    def __init__(self, session):
+        """
+        Query a user resource collection.
+
+        :return: A user resource collection.
+        :rtype: :class:`resources.UserCollection`
+        """
+        super(UserCollection, self).__init__(session)
+
 
 class Variant(Resource):
     """
     Class for representing a variant resource.
     """
     key = 'variant'
-    _immutable = ('uri', 'chromosome', 'position', 'reference', 'observed')
+
+    chromosome = String(doc='Chromosome name.')
+    position = Integer(doc='Position of variant on `chromosome`.')
+    reference = String(doc='Reference allele.')
+    observed = String(doc='Observed allele.')
 
     @classmethod
     def create(cls, session, chromosome, position, reference='', observed=''):
@@ -678,11 +749,11 @@ class Variant(Resource):
         :return: A variant resource.
         :rtype: :class:`resources.Variant`
         """
-        data = {'chromosome': chromosome,
-                'position': position,
-                'reference': reference,
-                'observed': observed}
-        return super(Variant, cls).create(session, data=data)
+        values = {'chromosome': chromosome,
+                  'position': position,
+                  'reference': reference,
+                  'observed': observed}
+        return super(Variant, cls).create(session, values=values)
 
     def annotate(self, queries=None):
         """
@@ -715,13 +786,26 @@ class VariantCollection(ResourceCollection):
     """
     resource_class = Variant
 
+    def __init__(self, session):
+        """
+        Query a variant resource collection.
+
+        :return: A variant resource collection.
+        :rtype: :class:`resources.VariantCollection`
+        """
+        super(VariantCollection, self).__init__(session)
+
 
 class Variation(TaskedResource):
     """
     Class for representing a variation resource.
     """
     key = 'variation'
-    _immutable = ('uri', 'sample', 'data_source')
+
+    sample = Link('sample',
+                  doc='Variation is part of this :class:`Sample`.')
+    data_source = Link('data_source',
+                       doc='Variation data (:class:`DataSource` instance).')
 
     @classmethod
     def create(cls, session, sample, data_source, skip_filtered=True,
@@ -743,20 +827,12 @@ class Variation(TaskedResource):
         :return: A variation resource.
         :rtype: :class:`resources.Variation`
         """
-        data = {'sample': sample,
-                'data_source': data_source,
-                'skip_filtered': skip_filtered,
-                'use_genotypes': use_genotypes,
-                'prefer_genotype_likelihoods': prefer_genotype_likelihoods}
-        return super(Variation, cls).create(session, data=data)
-
-    @property
-    def sample(self):
-        return self.session.sample(self._fields['sample']['uri'])
-
-    @property
-    def data_source(self):
-        return self.session.data_source(self._fields['data_source']['uri'])
+        values = {'sample': sample,
+                  'data_source': data_source,
+                  'skip_filtered': skip_filtered,
+                  'use_genotypes': use_genotypes,
+                  'prefer_genotype_likelihoods': prefer_genotype_likelihoods}
+        return super(Variation, cls).create(session, values=values)
 
 
 class VariationCollection(ResourceCollection):
@@ -765,4 +841,19 @@ class VariationCollection(ResourceCollection):
     returning :class:`Variation` instances.
     """
     resource_class = Variation
-    _accepted_args = ('sample',)
+
+    sample = Link('sample',
+                  doc='Collection is filtered by this :class:`Sample`.')
+
+    def __init__(self, session, sample=None):
+        """
+        Query a variation resource collection.
+
+        :arg sample: Filter collection by sample.
+        :type sample: :class:`resources.Sample`
+
+        :return: A variation resource collection.
+        :rtype: :class:`resources.VariationCollection`
+        """
+        values = {'sample': sample}
+        super(VariationCollection, self).__init__(session, values=values)

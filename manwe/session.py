@@ -56,6 +56,7 @@ class SessionMeta(type):
             Get a resource of type {key}.
 
             :arg str uri: URI for the {key} to retrieve.
+
             :return: A resource of type {key}.
             :rtype: :class:`resources.{collection_class.resource_class.__name__}`
             """
@@ -64,19 +65,8 @@ class SessionMeta(type):
             key=key, collection_class=collection_class)
 
         def get_collection(self, *args, **kwargs):
-            """
-            Get a resource collection of type {key}.
-
-            The collection can be filtered by setting any of the following
-            keyword args: {accepted_args}
-
-            :return: A resource collection of type {key}.
-            :rtype: :class:`resources.{collection_class.__name__}`
-            """
             return self._get_collection(key, *args, **kwargs)
-        get_collection.__doc__ = get_collection.__doc__.format(
-            key=key, collection_class=collection_class,
-            accepted_args=', '.join(collection_class._accepted_args) or 'none')
+        get_collection.__doc__ = collection_class.__init__.__doc__
 
         def create_resource(self, *args, **kwargs):
             return self._create_resource(key, *args, **kwargs)
@@ -185,8 +175,9 @@ class AbstractSession(object):
         if 'files' in kwargs:
             # If the `files` keyword argument is set, we don't encode the
             # `data` argument as JSON, since that cannot be combined with a
-            # file upload. The consequence is that we cannot have nested or
-            # structured data in the `data` argument.
+            # file upload. The consequence is that we cannot have arbitrarily
+            # nested or structured data in the `data` argument, only data that
+            # can be stringified.
             # We assume files can be large. Unfortunately, the requests
             # library can only do `multipart/form-data` requests by reading
             # the entire files in memory. The requests toolbelt library allows
@@ -196,6 +187,8 @@ class AbstractSession(object):
                 if not hasattr(handle, 'name') or handle.name.startswith('<'):
                     return default
                 return handle.name
+            # TODO: We could do a more intelligent stringify. For example,
+            #   Varda accepts comma-separated lists (not nested of course).
             fields = {k: str(v) for k, v in kwargs.get('data', {}).items()}
             fields.update({k: (get_filename(v, k), v)
                            for k, v in kwargs.pop('files', {}).items()})
@@ -203,8 +196,7 @@ class AbstractSession(object):
             kwargs['data'] = encoder
             headers['Content-Type'] = encoder.content_type
         elif 'data' in kwargs:
-            kwargs['data'] = json.dumps(kwargs['data'],
-                                        cls=resources.ResourceJSONEncoder)
+            kwargs['data'] = json.dumps(kwargs['data'])
             headers['Content-Type'] = 'application/json'
         headers['Accept-Version'] = ACCEPT_VERSION
         #kwargs['auth'] = self.config.USER, self.config.PASSWORD
