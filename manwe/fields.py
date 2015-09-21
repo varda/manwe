@@ -11,10 +11,6 @@ Manwë resource fields.
 import dateutil.parser
 
 
-# This is in bytes. Should it be much higher?
-DATA_BUFFER_SIZE = 1024
-
-
 class Field(object):
     """
     Base class for resource field definitions.
@@ -170,7 +166,7 @@ class Blob(Field):
         if value is None:
             return None
         return session.get(value['uri'], stream=True).iter_content(
-            chunk_size=DATA_BUFFER_SIZE)
+            chunk_size=session.config.DATA_BUFFER_SIZE)
 
     def from_python(self, value):
         if value is None:

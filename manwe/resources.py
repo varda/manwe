@@ -18,9 +18,6 @@ from .fields import (Blob, Boolean, DateTime, Field, Integer, Link, Queries,
                      Set, String, Task)
 
 
-COLLECTION_CACHE_SIZE = 20
-
-
 # This mirrors `varda.models.USER_ROLES`.
 USER_ROLES = (
     'admin',         # Can do anything.
@@ -323,11 +320,18 @@ class ResourceCollection(object):
     def __iter__(self):
         return self
 
+    @property
+    def cache_size(self):
+        """
+        Number of resources to query per collection request.
+        """
+        return self.session.config.COLLECTION_CACHE_SIZE
+
     def _get_resources(self):
         if self._next is None:
             return
         range_ = werkzeug.datastructures.Range(
-            'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
+            'items', [(self._next, self._next + self.cache_size)])
         try:
             response = self.session.get(
                 uri=self.session.endpoints[self.key + '_collection'],
@@ -348,7 +352,7 @@ class ResourceCollection(object):
             response.headers['Content-Range'])
         self.size = content_range.length
         if content_range.stop < content_range.length:
-            self._next += COLLECTION_CACHE_SIZE
+            self._next += self.cache_size
         else:
             self._next = None
 
