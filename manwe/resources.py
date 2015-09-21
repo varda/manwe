@@ -292,9 +292,11 @@ class ResourceCollection(object):
         # This is not used.
         self._dirty = set()
 
-        self._next = 0
+        # Cached collection of resources.
         self._resources = collections.deque()
-        self._get_resources()
+
+        # Start from the beginning.
+        self.reset()
 
     @classproperty
     def key(cls):
@@ -302,6 +304,14 @@ class ResourceCollection(object):
         Key for this resource type.
         """
         return cls.resource_class.key
+
+    def reset(self):
+        """
+        Reset resource collection iterator.
+        """
+        self._next = 0
+        self._resources.clear()
+        self._get_resources()
 
     def __repr__(self):
         if self._values:
@@ -355,12 +365,6 @@ class ResourceCollection(object):
 
     # Python 3 compatibility.
     __next__ = next
-
-    def reset(self):
-        """
-        TODO
-        """
-        raise NotImplementedError()
 
 
 class Annotation(TaskedResource):
