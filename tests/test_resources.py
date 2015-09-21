@@ -19,11 +19,11 @@ class TestAnnotation(object):
         """
         Read field values from an annotation with correct types.
         """
-        fields = dict(uri='/annotations/3',
+        values = dict(uri='/annotations/3',
                       original_data_source={'uri': '/data_sources/4'},
                       annotated_data_source={'uri': '/data_sources/6'})
 
-        annotation = resources.Annotation(None, fields)
+        annotation = resources.Annotation(None, values)
         assert annotation.uri == '/annotations/3'
 
 
@@ -32,11 +32,11 @@ class TestCoverage(object):
         """
         Read field values from a coverage with correct types.
         """
-        fields = dict(uri='/coverages/8',
+        values = dict(uri='/coverages/8',
                       sample={'uri': '/samples/3'},
                       data_source={'uri': '/data_sources/1'})
 
-        coverage = resources.Coverage(None, fields)
+        coverage = resources.Coverage(None, values)
         assert coverage.uri == '/coverages/8'
 
 
@@ -45,7 +45,7 @@ class TestDataSource(object):
         """
         Read field values from a data source with correct types.
         """
-        fields = dict(uri='/data_sources/4',
+        values = dict(uri='/data_sources/4',
                       name='test',
                       user={'uri': '/users/2'},
                       data={'uri': '/data_sources/4/data'},
@@ -53,7 +53,7 @@ class TestDataSource(object):
                       gzipped=True,
                       added='2012-11-23T10:55:12')
 
-        data_source = resources.DataSource(None, fields)
+        data_source = resources.DataSource(None, values)
         assert data_source.uri == '/data_sources/4'
         assert data_source.gzipped
         assert data_source.added == datetime.datetime(2012, 11, 23, 10, 55, 12)
@@ -64,7 +64,7 @@ class TestSample(object):
         """
         Read field values from a sample with correct types.
         """
-        fields =  {'name': 'test sample',
+        values =  {'name': 'test sample',
                    'pool_size': 5,
                    'coverage_profile': True,
                    'public': False,
@@ -73,7 +73,7 @@ class TestSample(object):
                    'active': True,
                    'notes': 'Some test notes',
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(None, fields)
+        sample = resources.Sample(None, values)
         assert sample.name == 'test sample'
         assert sample.pool_size == 5
         assert not sample.public
@@ -90,7 +90,7 @@ class TestSample(object):
                 return 'mock user'
         s = MockSession()
 
-        fields =  {'name': 'test sample',
+        values =  {'name': 'test sample',
                    'pool_size': 5,
                    'coverage_profile': True,
                    'public': False,
@@ -98,7 +98,7 @@ class TestSample(object):
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(s, fields)
+        sample = resources.Sample(s, values)
         user = sample.user
         assert user == 'mock user'
 
@@ -106,7 +106,7 @@ class TestSample(object):
         """
         Edit field values of a sample.
         """
-        fields =  {'name': 'test sample',
+        values =  {'name': 'test sample',
                    'pool_size': 5,
                    'coverage_profile': True,
                    'public': False,
@@ -114,16 +114,17 @@ class TestSample(object):
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(None, fields)
+        sample = resources.Sample(None, values)
         assert not sample.dirty
         sample.name = 'edited test sample'
+        assert sample.name == 'edited test sample'
         assert sample.dirty
 
     def test_edit_immutable_sample(self):
         """
         Edit immutable field values of a sample.
         """
-        fields =  {'name': 'test sample',
+        values =  {'name': 'test sample',
                    'pool_size': 5,
                    'coverage_profile': True,
                    'public': False,
@@ -131,7 +132,7 @@ class TestSample(object):
                    'user': {'uri': '/users/8'},
                    'active': True,
                    'added': '2012-11-23T10:55:12'}
-        sample = resources.Sample(None, fields)
+        sample = resources.Sample(None, values)
         with pytest.raises(AttributeError):
             sample.uri = '/some/uri/88'
 
@@ -184,14 +185,14 @@ class TestUser(object):
         """
         Read field values from a user with correct types.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       email='test@test.com',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         assert user.uri == '/users/4'
         assert user.email == 'test@test.com'
         assert user.roles == {'importer'}
@@ -201,28 +202,29 @@ class TestUser(object):
         """
         Edit field values of a user.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         assert not user.dirty
         user.name = 'edited test user'
+        assert user.name == 'edited test user'
         assert user.dirty
 
     def test_add_user_role_directly(self):
         """
         Try to add role to a user directly.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         with pytest.raises(AttributeError):
             user.roles.add('annotator')
 
@@ -230,59 +232,59 @@ class TestUser(object):
         """
         Add role to a user.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         assert not user.dirty
-        user.add_role('annotator')
-        assert user.dirty
+        user.roles = list(user.roles) + ['annotator']
         assert user.roles == {'importer', 'annotator'}
+        assert user.dirty
 
     def test_remove_user_role(self):
         """
         Remove role from a user.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         assert not user.dirty
-        user.remove_role('importer')
-        assert user.dirty
+        user.roles = [r for r in user.roles if r != 'importer']
         assert user.roles == set()
+        assert user.dirty
 
     def test_edit_user_role(self):
         """
         Edit roles field values of a user.
         """
-        fields = dict(uri='/users/4',
+        values = dict(uri='/users/4',
                       name='test',
                       login='test',
                       roles=['importer'],
                       added='2012-11-23T10:55:12')
 
-        user = resources.User(None, fields)
+        user = resources.User(None, values)
         assert not user.dirty
-        user.roles = {'importer', 'annotator'}
-        assert user.dirty
+        user.roles = ['importer', 'annotator']
         assert user.roles == {'importer', 'annotator'}
+        assert user.dirty
 
     def test_user_eq(self):
         """
         Compare two equal users.
         """
-        fields_a = dict(uri='/users/4', login='test')
-        fields_b = dict(uri='/users/4', login='test')
+        values_a = dict(uri='/users/4', login='test')
+        values_b = dict(uri='/users/4', login='test')
 
-        user_a = resources.User(None, fields_a)
-        user_b = resources.User(None, fields_b)
+        user_a = resources.User(None, values_a)
+        user_b = resources.User(None, values_b)
 
         assert user_a == user_b
 
@@ -290,11 +292,11 @@ class TestUser(object):
         """
         Compare two users with equal URIs.
         """
-        fields_a = dict(uri='/users/4', login='test a')
-        fields_b = dict(uri='/users/4', login='test b')
+        values_a = dict(uri='/users/4', login='test a')
+        values_b = dict(uri='/users/4', login='test b')
 
-        user_a = resources.User(None, fields_a)
-        user_b = resources.User(None, fields_b)
+        user_a = resources.User(None, values_a)
+        user_b = resources.User(None, values_b)
 
         assert user_a == user_b
 
@@ -302,11 +304,11 @@ class TestUser(object):
         """
         Compare two inequal users.
         """
-        fields_a = dict(uri='/users/4', login='test a')
-        fields_b = dict(uri='/users/6', login='test b')
+        values_a = dict(uri='/users/4', login='test a')
+        values_b = dict(uri='/users/6', login='test b')
 
-        user_a = resources.User(None, fields_a)
-        user_b = resources.User(None, fields_b)
+        user_a = resources.User(None, values_a)
+        user_b = resources.User(None, values_b)
 
         assert user_a != user_b
 
@@ -314,11 +316,11 @@ class TestUser(object):
         """
         Compare two users with inequal URIs.
         """
-        fields_a = dict(uri='/users/4', login='test a')
-        fields_b = dict(uri='/users/6', login='test a')
+        values_a = dict(uri='/users/4', login='test a')
+        values_b = dict(uri='/users/6', login='test a')
 
-        user_a = resources.User(None, fields_a)
-        user_b = resources.User(None, fields_b)
+        user_a = resources.User(None, values_a)
+        user_b = resources.User(None, values_b)
 
         assert user_a != user_b
 
@@ -328,13 +330,13 @@ class TestVariant(object):
         """
         Read field values from a variant with correct types.
         """
-        fields = dict(uri='/variants/3',
+        values = dict(uri='/variants/3',
                       chromosome='chr5',
                       position=45353,
                       reference='AT',
                       observed='TA')
 
-        variant = resources.Variant(None, fields)
+        variant = resources.Variant(None, values)
         assert variant.uri == '/variants/3'
         assert variant.chromosome == 'chr5'
         assert variant.position == 45353
@@ -347,9 +349,9 @@ class TestVariation(object):
         """
         Read field values from a variation with correct types.
         """
-        fields = dict(uri='/variations/23',
+        values = dict(uri='/variations/23',
                       sample={'uri': '/samples/3'},
                       data_source={'uri': '/data_sources/6'})
 
-        variation = resources.Variation(None, fields)
+        variation = resources.Variation(None, values)
         assert variation.uri == '/variations/23'

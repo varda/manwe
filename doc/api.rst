@@ -35,6 +35,14 @@ manwe.errors
    :show-inheritance:
 
 
+manwe.fields
+------------
+
+.. automodule:: manwe.fields
+   :members:
+   :show-inheritance:
+
+
 manwe.resources
 ---------------
 

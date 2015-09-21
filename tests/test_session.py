@@ -5,6 +5,7 @@ Unit tests for :mod:`manwe.session`.
 
 import os
 import gzip
+import shutil
 import zlib
 
 import pytest
@@ -40,6 +41,24 @@ class TestSession(utils.TestEnvironment):
 
         data_source_uri = self.uri_for_data_source(name='test data source')
         assert data_source.uri == data_source_uri
+
+    def test_create_annotation(self):
+        """
+        Create an annotation.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source, name='test annotation')
+
+        annotation_uri = self.uri_for_annotation()
+        assert annotation.uri == annotation_uri
 
     def test_samples_by_public(self):
         """
