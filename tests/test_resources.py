@@ -154,7 +154,7 @@ class TestSampleCollection(utils.TestEnvironment):
 
         # Total number of samples in our collection is 2 times the cache size
         # plus 3.
-        total = resources.COLLECTION_CACHE_SIZE * 2 + 3
+        total = self.session.config.COLLECTION_CACHE_SIZE * 2 + 3
 
         user = User.query.first()
         for i in range(total):
@@ -167,6 +167,49 @@ class TestSampleCollection(utils.TestEnvironment):
         sample_list = list(samples)
         assert len(sample_list) == total
         assert sample_list[0].name == 'test sample 1'
+        assert sample_list[-1].name == 'test sample %i' % total
+
+    def test_sample_collection_reset(self):
+        """
+        Reset a sample collection.
+        """
+        def create_sample(i):
+            return {'name': 'test sample %i' % i,
+                    'pool_size': 5,
+                    'coverage_profile': True,
+                    'public': False,
+                    'uri': '/samples/%i' % i,
+                    'user': {'uri': '/users/8'},
+                    'active': True,
+                    'added': '2012-11-23T10:55:12'}
+
+        # Total number of samples in our collection is 2 times the cache size
+        # plus 3.
+        total = self.session.config.COLLECTION_CACHE_SIZE * 2 + 3
+
+        user = User.query.first()
+        for i in range(total):
+            sample = Sample(user, 'test sample %d' % (i + 1))
+            db.session.add(sample)
+        db.session.commit()
+
+        samples = resources.SampleCollection(self.session)
+        assert samples.size == total
+        sample_list = list(samples)
+        assert len(sample_list) == total
+        assert sample_list[0].name == 'test sample 1'
+        assert sample_list[-1].name == 'test sample %i' % total
+
+        assert len(list(samples)) == 0
+
+        db.session.delete(Sample.query.filter_by(name='test sample 1').one())
+        db.session.commit()
+
+        samples.reset()
+        assert samples.size == total - 1
+        sample_list = list(samples)
+        assert len(sample_list) == total - 1
+        assert sample_list[0].name == 'test sample 2'
         assert sample_list[-1].name == 'test sample %i' % total
 
     def test_sample_collection_user(self):

@@ -18,9 +18,6 @@ from .fields import (Blob, Boolean, DateTime, Field, Integer, Link, Queries,
                      Set, String, Task)
 
 
-COLLECTION_CACHE_SIZE = 20
-
-
 # This mirrors `varda.models.USER_ROLES`.
 USER_ROLES = (
     'admin',         # Can do anything.
@@ -153,13 +150,11 @@ class Resource(object):
         #: :class:`session.Session <Session>`.
         self.session = session
 
-        # API values, not Python values.
-        self._values = {field.name: values[field.key]
-                        if field.key in values else field.default
-                        for field in self._fields}
-
         # Names of fields that are dirty.
         self._dirty = set()
+
+        # Load field values from parsed response JSON.
+        self._load_values(values)
 
     @classmethod
     def create(cls, session, values=None, files=None):
@@ -191,6 +186,13 @@ class Resource(object):
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
+    def _load_values(self, values):
+        # API values, not Python values.
+        self._values = {field.name: values[field.key]
+                        if field.key in values else field.default
+                        for field in self._fields}
+        self._dirty.clear()
+
     def __repr__(self):
         if self._values:
             values = ' ' + ' '.join('%s=%r' % x for x in self._values.items())
@@ -217,10 +219,10 @@ class Resource(object):
 
     def refresh(self):
         """
-        TODO
+        Refresh field values from server.
         """
-        raise NotImplementedError()
-        self._dirty.clear()
+        response = self.session.get(self.uri)
+        self._load_values(response.json()[self.key])
 
     def save(self):
         """
@@ -232,7 +234,6 @@ class Resource(object):
                                      for field in self._fields
                                      if field.name in self._dirty})
             self._dirty.clear()
-        # Todo: On save, refresh all fields from server?
 
 
 class TaskedResource(Resource):
@@ -288,9 +289,11 @@ class ResourceCollection(object):
         # This is not used.
         self._dirty = set()
 
-        self._next = 0
+        # Cached collection of resources.
         self._resources = collections.deque()
-        self._get_resources()
+
+        # Start from the beginning.
+        self.reset()
 
     @classproperty
     def key(cls):
@@ -298,6 +301,14 @@ class ResourceCollection(object):
         Key for this resource type.
         """
         return cls.resource_class.key
+
+    def reset(self):
+        """
+        Reset resource collection iterator.
+        """
+        self._next = 0
+        self._resources.clear()
+        self._get_resources()
 
     def __repr__(self):
         if self._values:
@@ -309,11 +320,18 @@ class ResourceCollection(object):
     def __iter__(self):
         return self
 
+    @property
+    def cache_size(self):
+        """
+        Number of resources to query per collection request.
+        """
+        return self.session.config.COLLECTION_CACHE_SIZE
+
     def _get_resources(self):
         if self._next is None:
             return
         range_ = werkzeug.datastructures.Range(
-            'items', [(self._next, self._next + COLLECTION_CACHE_SIZE)])
+            'items', [(self._next, self._next + self.cache_size)])
         try:
             response = self.session.get(
                 uri=self.session.endpoints[self.key + '_collection'],
@@ -334,7 +352,7 @@ class ResourceCollection(object):
             response.headers['Content-Range'])
         self.size = content_range.length
         if content_range.stop < content_range.length:
-            self._next += COLLECTION_CACHE_SIZE
+            self._next += self.cache_size
         else:
             self._next = None
 
@@ -351,12 +369,6 @@ class ResourceCollection(object):
 
     # Python 3 compatibility.
     __next__ = next
-
-    def reset(self):
-        """
-        TODO
-        """
-        raise NotImplementedError()
 
 
 class Annotation(TaskedResource):
