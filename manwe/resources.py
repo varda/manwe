@@ -153,13 +153,11 @@ class Resource(object):
         #: :class:`session.Session <Session>`.
         self.session = session
 
-        # API values, not Python values.
-        self._values = {field.name: values[field.key]
-                        if field.key in values else field.default
-                        for field in self._fields}
-
         # Names of fields that are dirty.
         self._dirty = set()
+
+        # Load field values from parsed response JSON.
+        self._load_values(values)
 
     @classmethod
     def create(cls, session, values=None, files=None):
@@ -191,6 +189,13 @@ class Resource(object):
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
+    def _load_values(self, values):
+        # API values, not Python values.
+        self._values = {field.name: values[field.key]
+                        if field.key in values else field.default
+                        for field in self._fields}
+        self._dirty.clear()
+
     def __repr__(self):
         if self._values:
             values = ' ' + ' '.join('%s=%r' % x for x in self._values.items())
@@ -217,10 +222,10 @@ class Resource(object):
 
     def refresh(self):
         """
-        TODO
+        Refresh field values from server.
         """
-        raise NotImplementedError()
-        self._dirty.clear()
+        response = self.session.get(self.uri)
+        self._load_values(response.json()[self.key])
 
     def save(self):
         """
@@ -232,7 +237,6 @@ class Resource(object):
                                      for field in self._fields
                                      if field.name in self._dirty})
             self._dirty.clear()
-        # Todo: On save, refresh all fields from server?
 
 
 class TaskedResource(Resource):

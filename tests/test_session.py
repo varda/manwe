@@ -235,3 +235,83 @@ class TestSession(utils.TestEnvironment):
         with gzip.open(filename) as vcf_file:
             assert zlib.decompress(''.join(data_source.data),
                                    16 + zlib.MAX_WBITS) == vcf_file.read()
+
+    def test_modify_sample(self):
+        """
+        Modify a sample.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.name = 'Modified Sample'
+        assert sample.dirty
+
+    def test_save_sample(self):
+        """
+        Save a sample.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.name = 'Modified Sample'
+        assert sample.dirty
+        sample.save()
+        assert not sample.dirty
+
+        assert varda.models.Sample.query.filter_by(
+            name='Modified Sample').count() == 1
+
+    def test_refresh_sample(self):
+        """
+        Refresh a sample.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.name == 'Sample'
+        sample.refresh()
+        assert sample.name == 'Modified Sample'
+
+    def test_refresh_modified_sample(self):
+        """
+        Refresh a modified sample.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.pool_size = 42
+        assert sample.dirty
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.pool_size == 42
+        assert sample.name == 'Sample'
+        sample.refresh()
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 1
+        assert not sample.dirty
