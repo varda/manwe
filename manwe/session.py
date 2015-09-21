@@ -27,6 +27,32 @@ ACCEPT_VERSION = '>=2.1.0,<3.0.0'
 logger = logging.getLogger('manwe')
 
 
+def stringify(value):
+    """
+    Serialize `value` to a `str` parsable by Varda.
+
+    Only works one level deep, so no nesting of structured data.
+
+        >>> stringify(34)
+        '34'
+        >>> stringify(False)
+        'false'
+        >>> stringify([4,2,6])
+        '4,2,6'
+        >>> stringify({'a': False, 'b': True})
+        'a:false,b:true'
+    """
+    if isinstance(value, basestring):
+        return value
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, collections.Mapping):
+        return ','.join('%s:%s' % (v, stringify(value[v])) for v in value)
+    if isinstance(value, collections.Iterable):
+        return ','.join(stringify(v) for v in value)
+    return str(value)
+
+
 class SessionMeta(type):
     def __new__(cls, name, parents, attributes):
         """
@@ -187,9 +213,8 @@ class AbstractSession(object):
                 if not hasattr(handle, 'name') or handle.name.startswith('<'):
                     return default
                 return handle.name
-            # TODO: We could do a more intelligent stringify. For example,
-            #   Varda accepts comma-separated lists (not nested of course).
-            fields = {k: str(v) for k, v in kwargs.get('data', {}).items()}
+            fields = {k: stringify(v)
+                      for k, v in kwargs.get('data', {}).items()}
             fields.update({k: (get_filename(v, k), v)
                            for k, v in kwargs.pop('files', {}).items()})
             encoder = MultipartEncoder(fields=fields)
