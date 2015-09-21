@@ -5,7 +5,6 @@ Unit tests for :mod:`manwe.session`.
 
 import os
 import gzip
-import shutil
 import zlib
 
 import pytest
