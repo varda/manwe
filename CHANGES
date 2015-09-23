@@ -7,7 +7,7 @@ Here you can see the full list of changes between each Manwë release.
 Version 1.2.0
 -------------
 
-Release date to be decided.
+Released on September 23rd 2015.
 
 - Configurable collection cache and buffer size.
 - Add :meth:`.Resource.refresh` method .
