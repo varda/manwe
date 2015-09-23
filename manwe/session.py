@@ -84,7 +84,7 @@ class SessionMeta(type):
             :arg str uri: URI for the {key} to retrieve.
 
             :return: A resource of type {key}.
-            :rtype: :class:`resources.{collection_class.resource_class.__name__}`
+            :rtype: :class:`.{collection_class.resource_class.__name__}`
             """
             return self._get_resource(key, uri)
         get_resource.__doc__ = get_resource.__doc__.format(
