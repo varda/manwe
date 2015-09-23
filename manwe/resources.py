@@ -142,12 +142,12 @@ class Resource(object):
         Create a representation for a server resource from a dictionary.
 
         :arg session: Manwë session.
-        :type session: :class:`manwe.Session`
+        :type session: :class:`.Session`
         :arg values: Dictionary with field values (using API keys and values).
         :type values: dict
         """
         #: The session this resource is attached to as
-        #: :class:`session.Session <Session>`.
+        #: :class:`.Session <Session>`.
         self.session = session
 
         # Names of fields that are dirty.
@@ -163,7 +163,7 @@ class Resource(object):
         it.
 
         :arg session: Manwë session.
-        :type session: :class:`manwe.Session`
+        :type session: :class:`.Session`
         :arg values: Dictionary with field values (using Python names and
           values).
         :type values: dict
@@ -262,7 +262,7 @@ class ResourceCollection(object):
         Create a representation for a server resource collection.
 
         :arg session: Manwë session.
-        :type session: :class:`manwe.Session`
+        :type session: :class:`.Session`
         :arg values: Dictionary with field values (using Python names and
           values).
         :type values: dict
@@ -272,7 +272,7 @@ class ResourceCollection(object):
         values = values or {}
 
         #: The session this resource collection  is attached to as
-        #: :class:`session.Session <Session>`.
+        #: :class:`.Session <Session>`.
         self.session = session
 
         #: The total number of resources in this collection as last reported
@@ -396,7 +396,7 @@ class Annotation(TaskedResource):
         Create an annotation resource.
 
         :arg data_source: Data source to annotate.
-        :type data_source: :class:`resources.DataSource`
+        :type data_source: :class:`.DataSource`
         :arg name: Human readable annotation name.
         :type name: str
         :arg queries: Sample queries to calculate variant frequencies over.
@@ -405,7 +405,7 @@ class Annotation(TaskedResource):
         :type queries: dict(str, str)
 
         :return: An annotation resource.
-        :rtype: :class:`resources.Annotation`
+        :rtype: :class:`.Annotation`
         """
         queries = queries or {}
 
@@ -428,7 +428,7 @@ class AnnotationCollection(ResourceCollection):
         Query an annotation resource collection.
 
         :return: An annotation resource collection.
-        :rtype: :class:`resources.AnnotationCollection`
+        :rtype: :class:`.AnnotationCollection`
         """
         super(AnnotationCollection, self).__init__(session)
 
@@ -450,12 +450,12 @@ class Coverage(TaskedResource):
         Create a coverage resource.
 
         :arg sample: Sample the coverage resource is part of.
-        :type sample: :class:`resources.Sample`
+        :type sample: :class:`.Sample`
         :arg data_source: Data source for the coverage resource.
-        :type data_source: :class:`resources.DataSource`
+        :type data_source: :class:`.DataSource`
 
         :return: A coverage resource.
-        :rtype: :class:`resources.Coverage`
+        :rtype: :class:`.Coverage`
         """
         values = {'sample': sample,
                   'data_source': data_source}
@@ -477,10 +477,10 @@ class CoverageCollection(ResourceCollection):
         Query a coverage resource collection.
 
         :arg sample: Filter collection by sample.
-        :type sample: :class:`resources.Sample`
+        :type sample: :class:`.Sample`
 
         :return: A coverage resource collection.
-        :rtype: :class:`resources.CoverageCollection`
+        :rtype: :class:`.CoverageCollection`
         """
         values = {'sample': sample}
         super(CoverageCollection, self).__init__(session, values=values)
@@ -515,7 +515,7 @@ class DataSource(Resource):
           used instead of `data`.
 
         :return: A data source resource.
-        :rtype: :class:`resources.DataSource`
+        :rtype: :class:`.DataSource`
         """
         values = {'name': name,
                   'filetype': filetype,
@@ -545,10 +545,10 @@ class DataSourceCollection(ResourceCollection):
         Query a data source resource collection.
 
         :arg user: Filter collection by user.
-        :type user: :class:`resources.User`
+        :type user: :class:`.User`
 
         :return: A data source resource collection.
-        :rtype: :class:`resources.DataSourceCollection`
+        :rtype: :class:`.DataSourceCollection`
         """
         values = {'user': user}
         super(DataSourceCollection, self).__init__(session, values=values)
@@ -570,7 +570,7 @@ class Group(Resource):
         :arg str name: Human readable group name.
 
         :return: A group resource.
-        :rtype: :class:`resources.Group`
+        :rtype: :class:`.Group`
         """
         values = {'name': name}
         return super(Group, cls).create(session, values=values)
@@ -588,7 +588,7 @@ class GroupCollection(ResourceCollection):
         Query a group resource collection.
 
         :return: A group resource collection.
-        :rtype: :class:`resources.GroupCollection`
+        :rtype: :class:`.GroupCollection`
         """
         super(GroupCollection, self).__init__(session)
 
@@ -625,10 +625,10 @@ class Sample(Resource):
         :arg bool public: Whether or not this sample is public.
         :arg str notes: Human readable notes in Markdown format.
         :arg groups: Groups this sample is part of.
-        :type groups: iterable(:class:`resources.DataSource`)
+        :type groups: iterable(:class:`.DataSource`)
 
         :return: A sample resource.
-        :rtype: :class:`resources.Sample`
+        :rtype: :class:`.Sample`
         """
         groups = groups or []
 
@@ -660,14 +660,14 @@ class SampleCollection(ResourceCollection):
         Query a sample resource collection.
 
         :arg groups: Filter collection by groups.
-        :type groups: iterable(:class:`resources.DataSource`)
+        :type groups: iterable(:class:`.DataSource`)
         :arg public: Filter collection by public/non-public.
         :type public: bool
         :arg user: Filter collection by user.
-        :type user: :class:`resources.User`
+        :type user: :class:`.User`
 
         :return: A sample resource collection.
-        :rtype: :class:`resources.SampleCollection`
+        :rtype: :class:`.SampleCollection`
         """
         values = {'groups': groups,
                   'public': public,
@@ -703,11 +703,11 @@ class User(Resource):
         :arg str name: Human readable user name.
         :arg str email: User e-mail address.
         :arg roles: Roles for this user (values must be from
-          :data:`resources.USER_ROLES`).
+          :data:`.USER_ROLES`).
         :type roles: iterable(str)
 
         :return: A user resource.
-        :rtype: :class:`resources.User`
+        :rtype: :class:`.User`
         """
         roles = roles or []
 
@@ -732,7 +732,7 @@ class UserCollection(ResourceCollection):
         Query a user resource collection.
 
         :return: A user resource collection.
-        :rtype: :class:`resources.UserCollection`
+        :rtype: :class:`.UserCollection`
         """
         super(UserCollection, self).__init__(session)
 
@@ -759,7 +759,7 @@ class Variant(Resource):
         :arg str observed: Observed allele.
 
         :return: A variant resource.
-        :rtype: :class:`resources.Variant`
+        :rtype: :class:`.Variant`
         """
         values = {'chromosome': chromosome,
                   'position': position,
@@ -803,7 +803,7 @@ class VariantCollection(ResourceCollection):
         Query a variant resource collection.
 
         :return: A variant resource collection.
-        :rtype: :class:`resources.VariantCollection`
+        :rtype: :class:`.VariantCollection`
         """
         super(VariantCollection, self).__init__(session)
 
@@ -826,9 +826,9 @@ class Variation(TaskedResource):
         Create a variation resource.
 
         :arg sample: Sample the variation resource is part of.
-        :type sample: :class:`resources.Sample`
+        :type sample: :class:`.Sample`
         :arg data_source: Data source for the variation resource.
-        :type data_source: :class:`resources.DataSource`
+        :type data_source: :class:`.DataSource`
         :arg bool skip_filtered: Discard entries in `data_source` marked as
           filtered.
         :arg bool use_genotypes: Use per-sample genotype information from
@@ -837,7 +837,7 @@ class Variation(TaskedResource):
           likelihoods from `data_source` instead of concrete genotypes.
 
         :return: A variation resource.
-        :rtype: :class:`resources.Variation`
+        :rtype: :class:`.Variation`
         """
         values = {'sample': sample,
                   'data_source': data_source,
@@ -862,10 +862,10 @@ class VariationCollection(ResourceCollection):
         Query a variation resource collection.
 
         :arg sample: Filter collection by sample.
-        :type sample: :class:`resources.Sample`
+        :type sample: :class:`.Sample`
 
         :return: A variation resource collection.
-        :rtype: :class:`resources.VariationCollection`
+        :rtype: :class:`.VariationCollection`
         """
         values = {'sample': sample}
         super(VariationCollection, self).__init__(session, values=values)
