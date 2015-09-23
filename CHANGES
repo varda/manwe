@@ -4,10 +4,26 @@ Changelog
 Here you can see the full list of changes between each Manwë release.
 
 
-Version 1.0.1
+Version 1.2.1
 -------------
 
 Release date to be decided.
+
+
+Version 1.2.0
+-------------
+
+Released on September 23rd 2015.
+
+- Configurable collection cache and buffer size.
+- Add :meth:`.Resource.refresh` method .
+- Add :meth:`.ResourceCollection.reset` method.
+- More complete Sphinx API documentation.
+- Better Python API discoverability (through tab completion on the session and
+  resource instances, and better docstrings).
+- Stream file uploads, effectively supporting large files without loading them
+  in memory.
+
 
 
 Version 1.0.0
