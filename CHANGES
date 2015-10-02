@@ -9,6 +9,9 @@ Version 1.2.1
 
 Release date to be decided.
 
+- Add VERIFY_CERTIFICATE config setting.
+- Allow API mounted on a subpath.
+
 
 Version 1.2.0
 -------------
