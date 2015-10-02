@@ -226,7 +226,9 @@ class AbstractSession(object):
         if self.config.TOKEN:
             headers['Authorization'] = 'Token ' + self.config.TOKEN
         try:
-            response = requests.request(method, uri, headers=headers, **kwargs)
+            response = requests.request(
+                method, uri, headers=headers,
+                verify=self.config.VERIFY_CERTIFICATE, **kwargs)
         except requests.RequestException as e:
             logger.warn('Unable to make API request', method, uri)
             raise
