@@ -7,7 +7,7 @@ Here you can see the full list of changes between each Manwë release.
 Version 1.2.1
 -------------
 
-Release date to be decided.
+Released on October 2nd 2015.
 
 - Add VERIFY_CERTIFICATE config setting.
 - Allow API mounted on a subpath.
