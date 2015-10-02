@@ -13,7 +13,7 @@ import os
 
 import flask.config
 
-import default_config
+from . import default_config
 
 
 class AttributeDictMixin(object):
