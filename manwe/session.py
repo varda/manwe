@@ -11,6 +11,8 @@ Manwë sessions.
 import collections
 import json
 import logging
+import urlparse
+
 import requests
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
@@ -165,11 +167,7 @@ class AbstractSession(object):
         return {key: response['root'][key]['uri'] for key in keys}
 
     def _qualified_uri(self, uri):
-        if uri.startswith('/'):
-            if self.config.API_ROOT.endswith('/'):
-                return self.config.API_ROOT + uri[1:]
-            return self.config.API_ROOT + uri
-        return uri
+        return urlparse.urljoin(self.config.API_ROOT, uri)
 
     def get(self, *args, **kwargs):
         """
