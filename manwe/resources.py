@@ -76,6 +76,9 @@ class ResourceMeta(type):
             if not isinstance(attribute, Field):
                 continue
 
+            # Remove field definition.
+            del attributes[name_]
+
             # Store the name under which the field is available on the class
             # in the field itself.
             attribute.name = name_
@@ -87,6 +90,7 @@ class ResourceMeta(type):
             if attribute.hidden:
                 continue
 
+            # Add field getter (and setter).
             if attribute.mutable:
                 attributes[name_] = property(cls._getter(attribute),
                                              cls._setter(attribute),

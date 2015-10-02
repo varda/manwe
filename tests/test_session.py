@@ -59,6 +59,22 @@ class TestSession(utils.TestEnvironment):
         annotation_uri = self.uri_for_annotation()
         assert annotation.uri == annotation_uri
 
+    def test_create_annotation_name(self):
+        """
+        Create an annotation and check for name.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        self.session.create_annotation(data_source, name='test annotation')
+        varda.models.DataSource.query.filter_by(name='test annotation').one()
+
     def test_samples_by_public(self):
         """
         Filter sample collection by public status.
