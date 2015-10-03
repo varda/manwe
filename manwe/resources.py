@@ -234,7 +234,7 @@ class Resource(object):
 
     def refresh(self, skip_dirty=False):
         """
-        Refresh field values from server.
+        Refresh resource with data from the server.
 
         :arg bool skip_dirty: If `True`, don't refresh field values with
           unsaved changes.
@@ -244,14 +244,17 @@ class Resource(object):
 
     def save(self):
         """
-        Save any unsaved changes on this resource.
+        Send any unsaved changes on this resource to the server and refresh
+        with data from the server.
         """
         if self.dirty:
-            self.session.patch(self.uri,
-                               data={field.key: getattr(self, field.name)
-                                     for field in self._fields
-                                     if field.name in self._dirty})
-            self._dirty.clear()
+            data = {field.key: getattr(self, field.name)
+                    for field in self._fields
+                    if field.name in self._dirty}
+            response = self.session.patch(self.uri, data=data)
+            self._load_values(response.json()[self.key])
+        else:
+            self.refresh()
 
 
 class TaskedResource(Resource):
