@@ -106,8 +106,7 @@ class ResourceMeta(type):
     @staticmethod
     def _getter(field):
         def getter_for_field(self):
-            return field.to_python(self._values.get(field.name),
-                                   self.session)
+            return field.to_python(self._values.get(field.name), self)
         return getter_for_field
 
     @staticmethod
