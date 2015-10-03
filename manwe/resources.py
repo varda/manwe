@@ -154,6 +154,9 @@ class Resource(object):
         #: :class:`.Session <Session>`.
         self.session = session
 
+        #: Initialize fields with default values.
+        self._values = {field.name: field.default for field in self._fields}
+
         # Names of fields that are dirty.
         self._dirty = set()
 
@@ -190,12 +193,20 @@ class Resource(object):
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
-    def _load_values(self, values):
-        # API values, not Python values.
-        self._values = {field.name: values[field.key]
-                        if field.key in values else field.default
-                        for field in self._fields}
-        self._dirty.clear()
+    def _load_values(self, values, skip_dirty=False):
+        """
+        Load field values.
+
+        :arg dict values: Dictionary with field values (using API keys and
+          values).
+        """
+        for field in self._fields:
+            if field.key not in values:
+                continue
+            if skip_dirty and field.name in self._dirty:
+                continue
+            self._values.update({field.name: values[field.key]})
+            self._dirty.discard(field.name)
 
     def __repr__(self):
         if self._values:
@@ -221,12 +232,15 @@ class Resource(object):
         """
         return bool(self._dirty)
 
-    def refresh(self):
+    def refresh(self, skip_dirty=False):
         """
         Refresh field values from server.
+
+        :arg bool skip_dirty: If `True`, don't refresh field values with
+          unsaved changes.
         """
         response = self.session.get(self.uri)
-        self._load_values(response.json()[self.key])
+        self._load_values(response.json()[self.key], skip_dirty=skip_dirty)
 
     def save(self):
         """

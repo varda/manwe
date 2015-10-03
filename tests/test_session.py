@@ -331,3 +331,29 @@ class TestSession(utils.TestEnvironment):
         assert sample.name == 'Modified Sample'
         assert sample.pool_size == 1
         assert not sample.dirty
+
+    def test_refresh_modified_sample_skip_dirty(self):
+        """
+        Refresh a modified sample skipping dirty fields.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.pool_size = 42
+        assert sample.dirty
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.pool_size == 42
+        assert sample.name == 'Sample'
+        sample.refresh(skip_dirty=True)
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 42
+        assert sample.dirty
