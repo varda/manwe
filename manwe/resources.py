@@ -256,6 +256,19 @@ class Resource(object):
         else:
             self.refresh()
 
+    def save_fields(self, **values):
+        """
+        Send field values specified by keyword arguments to the server and
+        refresh with data from the server (skipping dirty field values).
+
+        Keyword arguments use Python names and values.
+        """
+        data = {field.key: field.from_python(values[field.name])
+                for field in self._fields
+                if field.name in values}
+        response = self.session.patch(self.uri, data=data)
+        self._load_values(response.json()[self.key], skip_dirty=True)
+
 
 class TaskedResource(Resource):
     """
