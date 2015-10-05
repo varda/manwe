@@ -9,13 +9,14 @@ Manwë resources.
 
 
 import collections
+import time
 
 import werkzeug.datastructures
 import werkzeug.http
 
-from .errors import UnsatisfiableRangeError
-from .fields import (Blob, Boolean, DateTime, Field, Integer, Link, Queries,
-                     Set, String, Task)
+from .errors import TaskError, UnsatisfiableRangeError
+from .fields import (Blob, Boolean, DateTime, Custom, Field, Integer, Link,
+                     Queries, Set, String)
 
 
 # This mirrors `varda.models.USER_ROLES`.
@@ -269,12 +270,150 @@ class Resource(object):
         self._load_values(response.json()[self.key], skip_dirty=True)
 
 
+class Task(object):
+    """
+    Represents a server task.
+
+    Instances are equiped with the parent resource which they use to query
+    task state. This means refreshing the parent resource is directly visible
+    on the task.
+    """
+    def __init__(self, resource):
+        self.resource = resource
+        # We use `_state` in `to_api`.
+        self._state = None
+
+    @classmethod
+    def from_api(cls, value, resource):
+        if value is None:
+            return None
+        # Task state is queried directly from the parent resource, so we can
+        # discard the value that is passed here.
+        return cls(resource)
+
+    @classmethod
+    def to_api(cls, task):
+        if task is None:
+            return None
+        return {'state': task._state}
+
+    @property
+    def _task(self):
+        return self.resource._values['task']
+
+    @property
+    def state(self):
+        """
+        Task state. Possible values are ``waiting``, ``running``, ``succes``,
+        and ``failure``.
+        """
+        return self._task['state']
+
+    @property
+    def waiting(self):
+        """
+        Whether or not task is in waiting state.
+        """
+        return self.state == 'waiting'
+
+    @property
+    def running(self):
+        """
+        Whether or not task is in running state.
+
+        If `True`, :attr:`progress` is set.
+        """
+        return self.state == 'running'
+
+    @property
+    def success(self):
+        """
+        Whether or not task is in success state.
+        """
+        return self.state == 'success'
+
+    @property
+    def failure(self):
+        """
+        Whether or not task is in failure state.
+
+        If `True`, :attr:`error` is set.
+        """
+        return self.state == 'failure'
+
+    @property
+    def error(self):
+        """
+        The error object as a :class:`.TaskError` if :attr:`state` is
+        ``failure``, `None` otherwise.
+        """
+        if not self.failure:
+            return None
+        error = self._task['error']
+        return TaskError(error['code'], error['message'])
+
+    @property
+    def progress(self):
+        """
+        Task progress in the range `0` to `100` if :attr:`state` is
+        ``running``, `None` otherwise.
+        """
+        return self._task.get('progress')
+
+    def wait_and_monitor(self):
+        """
+        Iterator, yielding :attr:`progress` while :attr:`state` is ``waiting``
+        or ``running``, polling the server every
+        :attr:`~manwe.default_config.TASK_POLL_WAIT` seconds.
+
+        After that, yield `100`, or raise :attr:`error` if :attr:`state` is
+        ``failure``.
+        """
+        wait_time = self.resource.session.config.TASK_POLL_WAIT
+        last_poll = time.time()
+
+        while self.waiting or self.running:
+            yield self.progress
+
+            # Some time might have been spent before the next yield is asked
+            # for, so instead of sleeping for `wait_time`, we sleep for the
+            # part of `wait_time` that is still left.
+            time.sleep(max(0, wait_time - (time.time() - last_poll)))
+
+            self.resource.refresh(skip_dirty=True)
+            last_poll = time.time()
+
+        if self.success:
+            yield 100
+        elif self.failure:
+            raise self.error
+
+    def wait(self):
+        """
+        Block while :attr:`state` is ``waiting`` or ``running``, polling the
+        server every :attr:`~manwe.default_config.TASK_POLL_WAIT` seconds.
+        """
+        for _ in self.wait_and_monitor():
+            pass
+
+    def resubmit(self):
+        """
+        Resubmit task.
+        """
+        self._state = 'submitted'
+        try:
+            self.resource.save_fields(task=self)
+        finally:
+            self._state = None
+
+
 class TaskedResource(Resource):
     """
     Base class for representing server resources with tasks.
     """
-    # Todo: Implement task specific functionality.
-    task = Task()
+    task = Custom(
+        Task.from_api, Task.to_api,
+        doc='Server task (:class:`Task` instance).')
 
 
 class ResourceCollection(object):

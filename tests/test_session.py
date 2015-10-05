@@ -10,6 +10,7 @@ import zlib
 import pytest
 import varda
 import varda.models
+import varda.tasks
 
 import utils
 
@@ -74,6 +75,142 @@ class TestSession(utils.TestEnvironment):
 
         self.session.create_annotation(data_source, name='test annotation')
         varda.models.DataSource.query.filter_by(name='test annotation').one()
+
+    def test_annotation_task(self):
+        """
+        Create an annotation and check task state.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+    def test_annotation_task_wait(self):
+        """
+        Create an annotation and wait for task.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        percentages = task.wait_and_monitor()
+        assert next(percentages) is None
+        assert next(percentages) is None
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        assert next(percentages) == 100
+        with pytest.raises(StopIteration):
+            next(percentages)
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+    def test_create_annotation_task_resubmit(self):
+        """
+        Create an annotation and resubmit task.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+        task.resubmit()
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
 
     def test_samples_by_public(self):
         """

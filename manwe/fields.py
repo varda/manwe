@@ -112,12 +112,12 @@ class Link(Field):
     """
     Definition for a resource link.
     """
-    def __init__(self, resource_key, *args, **kwargs):
+    def __init__(self, resource_key, **kwargs):
         """
         :arg str resource_key: Key for the linked resource.
         """
         self.resource_key = resource_key
-        super(Link, self).__init__(*args, **kwargs)
+        super(Link, self).__init__(**kwargs)
 
     def to_python(self, value, resource):
         """
@@ -175,13 +175,13 @@ class Blob(Field):
 
 
 class Set(Field):
-    def __init__(self, field, *args, **kwargs):
+    def __init__(self, field, **kwargs):
         """
         :arg field: Field definition for the set members.
         :type field: :class:`Field`
         """
         self.field = field
-        super(Set, self).__init__(*args, **kwargs)
+        super(Set, self).__init__(**kwargs)
 
     def to_python(self, value, resource):
         """
@@ -196,11 +196,6 @@ class Set(Field):
         if value is None:
             return None
         return [self.field.from_python(x) for x in value]
-
-
-class Task(Field):
-    # TODO: Do something more intelligent.
-    pass
 
 
 class Queries(Field):
@@ -222,3 +217,19 @@ class Queries(Field):
         if value is None:
             return None
         return [{'name': k, 'expression': v} for k, v in value.items()]
+
+
+class Custom(Field):
+    """
+    Custom field definitions are parameterized with conversion functions.
+    """
+    def __init__(self, from_api, to_api, **kwargs):
+        self._from_api = from_api
+        self._to_api = to_api
+        super(Custom, self).__init__(**kwargs)
+
+    def to_python(self, value, resource):
+        return self._from_api(value, resource)
+
+    def from_python(self, value):
+        return self._to_api(value)

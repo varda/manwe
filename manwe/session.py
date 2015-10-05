@@ -23,7 +23,7 @@ from .errors import (ApiError, BadRequestError, ForbiddenError,
 from . import resources
 
 
-ACCEPT_VERSION = '>=2.1.0,<3.0.0'
+ACCEPT_VERSION = '>=3.0.0,<4.0.0'
 
 
 logger = logging.getLogger('manwe')
