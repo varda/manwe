@@ -10,6 +10,7 @@ import zlib
 import pytest
 import varda
 import varda.models
+import varda.tasks
 
 import utils
 
@@ -58,6 +59,158 @@ class TestSession(utils.TestEnvironment):
 
         annotation_uri = self.uri_for_annotation()
         assert annotation.uri == annotation_uri
+
+    def test_create_annotation_name(self):
+        """
+        Create an annotation and check for name.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        self.session.create_annotation(data_source, name='test annotation')
+        varda.models.DataSource.query.filter_by(name='test annotation').one()
+
+    def test_annotation_task(self):
+        """
+        Create an annotation and check task state.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+    def test_annotation_task_wait(self):
+        """
+        Create an annotation and wait for task.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        percentages = task.wait_and_monitor()
+        assert next(percentages) is None
+        assert next(percentages) is None
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        assert next(percentages) == 100
+        with pytest.raises(StopIteration):
+            next(percentages)
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+    def test_create_annotation_task_resubmit(self):
+        """
+        Create an annotation and resubmit task.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.DataSource(
+            admin, 'test data source', 'vcf', local_file='test.vcf.gz',
+            gzipped=True))
+        varda.db.session.commit()
+
+        data_source_uri = self.uri_for_data_source(name='test data source')
+        data_source = self.session.data_source(data_source_uri)
+
+        annotation = self.session.create_annotation(data_source)
+        task = annotation.task
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
+
+        task.resubmit()
+
+        assert task.waiting
+        assert not task.running
+        assert not task.success
+        assert not task.failure
+        assert task.error is None
+
+        # Mannually run task.
+        varda_annotation = varda.models.Annotation.query.one()
+        result = varda.tasks.write_annotation.apply(args=[varda_annotation.id])
+        varda_annotation.task_uuid = result.task_id
+        varda.db.session.commit()
+
+        annotation.refresh()
+
+        assert not task.waiting
+        assert not task.running
+        assert task.success
+        assert not task.failure
+        assert task.error is None
 
     def test_samples_by_public(self):
         """
@@ -271,6 +424,112 @@ class TestSession(utils.TestEnvironment):
         assert varda.models.Sample.query.filter_by(
             name='Modified Sample').count() == 1
 
+    def test_save_modified_sample(self):
+        """
+        Save a modified sample.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.pool_size = 42
+        assert sample.dirty
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.pool_size == 42
+        assert sample.name == 'Sample'
+        sample.save()
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 42
+        assert not sample.dirty
+
+        assert varda.models.Sample.query.filter_by(
+            name='Modified Sample', pool_size=42).count() == 1
+
+    def test_save_fields_sample(self):
+        """
+        Save a sample field.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert sample.name == 'Sample'
+        assert not sample.dirty
+        sample.save_fields(name='Modified Sample')
+        assert not sample.dirty
+        assert sample.name == 'Modified Sample'
+
+        assert varda.models.Sample.query.filter_by(
+            name='Modified Sample').count() == 1
+
+    def test_save_fields_modified_sample(self):
+        """
+        Save a modified sample field.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.name == 'Sample'
+        assert sample.pool_size == 1
+        assert not sample.dirty
+        sample.save_fields(pool_size=42)
+        assert not sample.dirty
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 42
+
+        assert varda.models.Sample.query.filter_by(
+            name='Modified Sample', pool_size=42).count() == 1
+
+    def test_save_fields_modified_both_sample(self):
+        """
+        Save a modified sample (local and on server) field.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.name == 'Sample'
+        assert sample.pool_size == 1
+        assert not sample.public
+        assert not sample.dirty
+
+        sample.public = True
+        assert sample.dirty
+        sample.save_fields(pool_size=42)
+        assert sample.dirty
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 42
+        assert sample.public
+
+        assert varda.models.Sample.query.filter_by(
+            name='Modified Sample', pool_size=42, public=False).count() == 1
+
     def test_refresh_sample(self):
         """
         Refresh a sample.
@@ -315,3 +574,29 @@ class TestSession(utils.TestEnvironment):
         assert sample.name == 'Modified Sample'
         assert sample.pool_size == 1
         assert not sample.dirty
+
+    def test_refresh_modified_sample_skip_dirty(self):
+        """
+        Refresh a modified sample skipping dirty fields.
+        """
+        admin = varda.models.User.query.filter_by(name='Administrator').one()
+        varda.db.session.add(varda.models.Sample(admin, 'Sample'))
+        varda.db.session.commit()
+
+        sample_uri = self.uri_for_sample(name='Sample')
+        sample = self.session.sample(sample_uri)
+
+        assert not sample.dirty
+        sample.pool_size = 42
+        assert sample.dirty
+
+        varda.models.Sample.query.filter_by(
+            name='Sample').one().name = 'Modified Sample'
+        varda.db.session.commit()
+
+        assert sample.pool_size == 42
+        assert sample.name == 'Sample'
+        sample.refresh(skip_dirty=True)
+        assert sample.name == 'Modified Sample'
+        assert sample.pool_size == 42
+        assert sample.dirty

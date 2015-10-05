@@ -14,7 +14,8 @@ import varda
 import varda.api
 import varda.models
 
-from manwe import session
+from manwe import Session
+from manwe.config import Config
 
 
 class TestEnvironment(object):
@@ -35,11 +36,7 @@ class TestEnvironment(object):
             'SQLALCHEMY_DATABASE_URI': 'sqlite://',
             'BROKER_URL': 'memory://',
             'CELERY_RESULT_BACKEND': 'cache',
-            'CELERY_CACHE_BACKEND': 'memory',
-            'CELERY_ALWAYS_EAGER': True,
-            # Note: If exceptions are propagated, on_failure handlers are not
-            # called.
-            'CELERY_EAGER_PROPAGATES_EXCEPTIONS': True,
+            'CELERY_CACHE_BACKEND': 'memory'
         })
         self._varda_app_context = self._varda.app_context()
         self._varda_app_context.push()
@@ -97,8 +94,13 @@ class TestEnvironment(object):
 
         varda.db.session.commit()
 
-        self.session = session.Session(api_root=self.api_root,
-                                       token=admin_token.key)
+        manwe_config = Config()
+        manwe_config.update({
+            'API_ROOT':        self.api_root,
+            'TOKEN':           admin_token.key,
+            'TASK_POLL_WAIT':  0.01
+        })
+        self.session = Session(config=manwe_config)
 
     def _uri_for_instance(self, resource, instance):
         with self._varda.test_request_context():

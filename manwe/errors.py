@@ -30,6 +30,10 @@ class NotFoundError(ApiError):
     pass
 
 
+class TaskError(ApiError):
+    pass
+
+
 class UnauthorizedError(ApiError):
     pass
 

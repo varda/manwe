@@ -16,6 +16,8 @@ import os
 import re
 import sys
 
+from clint import textui
+
 from .config import Config
 from .errors import (ApiError, BadRequestError, UnauthorizedError,
                      ForbiddenError, NotFoundError)
@@ -42,6 +44,17 @@ def abort(message=None):
     if message:
         log('error: %s' % message)
     sys.exit(1)
+
+
+def wait_for_task(task):
+    with textui.progress.Bar(expected_size=100) as bar:
+        for percentage in task.wait_and_monitor():
+            if percentage is None:
+                # We would like to show just a spinner while waiting and
+                # switch to the progress bar when running, but our options
+                # are a bit limited with Clint.
+                percentage = 0
+            bar.show(percentage)
 
 
 def list_samples(session, public=False, user=None, groups=None):
@@ -389,7 +402,7 @@ def data_source_data(session, uri):
         sys.stdout.write(chunk)
 
 
-def annotate_data_source(session, uri, queries=None):
+def annotate_data_source(session, uri, queries=None, wait=False):
     """
     Annotate data source with variant frequencies.
     """
@@ -404,8 +417,15 @@ def annotate_data_source(session, uri, queries=None):
         data_source, queries=queries)
     log('Started annotation: %s' % annotation.uri)
 
+    if not wait:
+        return
 
-def annotate_vcf(session, vcf_file, data_uploaded=False, queries=None):
+    wait_for_task(annotation.task)
+    log('Annotated data source: %s' % annotation.annotated_data_source.uri)
+
+
+def annotate_vcf(session, vcf_file, data_uploaded=False, queries=None,
+                 wait=False):
     """
     Annotate VCF file with variant frequencies.
     """
@@ -423,12 +443,20 @@ def annotate_vcf(session, vcf_file, data_uploaded=False, queries=None):
         gzipped=vcf_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
+
     annotation = session.create_annotation(
         data_source, queries=queries)
     log('Started annotation: %s' % annotation.uri)
 
+    if not wait:
+        return
 
-def annotate_bed(session, bed_file, data_uploaded=False, queries=None):
+    wait_for_task(annotation.task)
+    log('Annotated data source: %s' % annotation.annotated_data_source.uri)
+
+
+def annotate_bed(session, bed_file, data_uploaded=False, queries=None,
+                 wait=False):
     """
     Annotate BED file with variant frequencies.
     """
@@ -446,9 +474,16 @@ def annotate_bed(session, bed_file, data_uploaded=False, queries=None):
         gzipped=bed_file.endswith('.gz'),
         **source)
     log('Added data source: %s' % data_source.uri)
+
     annotation = session.create_annotation(
         data_source, queries=queries)
     log('Started annotation: %s' % annotation.uri)
+
+    if not wait:
+        return
+
+    wait_for_task(annotation.task)
+    log('Annotated data source: %s' % annotation.annotated_data_source.uri)
 
 
 def create_config(filename=None):
@@ -788,6 +823,9 @@ def main():
         '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
         metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
         'one allowed)')
+    p.add_argument(
+        '-w', '--wait', dest='wait', action='store_true',
+        help='wait for annotation to complete (blocking)')
 
     # Subparser 'annotate-vcf'.
     p = subparsers.add_parser(
@@ -804,6 +842,12 @@ def main():
         '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
         metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
         'one allowed)')
+    # TODO:
+    # - Perhaps --no-wait is better (i.e., wait by default)?
+    # - If we are waiting we might as well also download the result.
+    p.add_argument(
+        '-w', '--wait', dest='wait', action='store_true',
+        help='wait for annotation to complete (blocking)')
 
     # Subparser 'annotate-bed'.
     p = subparsers.add_parser(
@@ -820,6 +864,9 @@ def main():
         '-q', '--query', dest='queries', nargs=2, action=UpdateAction,
         metavar=('NAME', 'EXPRESSION'), help='annotation query (more than '
         'one allowed)')
+    p.add_argument(
+        '-w', '--wait', dest='wait', action='store_true',
+        help='wait for annotation to complete (blocking)')
 
     args = parser.parse_args()
 

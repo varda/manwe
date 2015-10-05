@@ -9,13 +9,14 @@ Manwë resources.
 
 
 import collections
+import time
 
 import werkzeug.datastructures
 import werkzeug.http
 
-from .errors import UnsatisfiableRangeError
-from .fields import (Blob, Boolean, DateTime, Field, Integer, Link, Queries,
-                     Set, String, Task)
+from .errors import TaskError, UnsatisfiableRangeError
+from .fields import (Blob, Boolean, DateTime, Custom, Field, Integer, Link,
+                     Queries, Set, String)
 
 
 # This mirrors `varda.models.USER_ROLES`.
@@ -76,6 +77,9 @@ class ResourceMeta(type):
             if not isinstance(attribute, Field):
                 continue
 
+            # Remove field definition.
+            del attributes[name_]
+
             # Store the name under which the field is available on the class
             # in the field itself.
             attribute.name = name_
@@ -87,6 +91,7 @@ class ResourceMeta(type):
             if attribute.hidden:
                 continue
 
+            # Add field getter (and setter).
             if attribute.mutable:
                 attributes[name_] = property(cls._getter(attribute),
                                              cls._setter(attribute),
@@ -102,8 +107,7 @@ class ResourceMeta(type):
     @staticmethod
     def _getter(field):
         def getter_for_field(self):
-            return field.to_python(self._values.get(field.name),
-                                   self.session)
+            return field.to_python(self._values.get(field.name), self)
         return getter_for_field
 
     @staticmethod
@@ -150,6 +154,9 @@ class Resource(object):
         #: :class:`.Session <Session>`.
         self.session = session
 
+        #: Initialize fields with default values.
+        self._values = {field.name: field.default for field in self._fields}
+
         # Names of fields that are dirty.
         self._dirty = set()
 
@@ -186,12 +193,20 @@ class Resource(object):
                                 **kwargs)
         return getattr(session, cls.key)(response.headers['Location'])
 
-    def _load_values(self, values):
-        # API values, not Python values.
-        self._values = {field.name: values[field.key]
-                        if field.key in values else field.default
-                        for field in self._fields}
-        self._dirty.clear()
+    def _load_values(self, values, skip_dirty=False):
+        """
+        Load field values.
+
+        :arg dict values: Dictionary with field values (using API keys and
+          values).
+        """
+        for field in self._fields:
+            if field.key not in values:
+                continue
+            if skip_dirty and field.name in self._dirty:
+                continue
+            self._values.update({field.name: values[field.key]})
+            self._dirty.discard(field.name)
 
     def __repr__(self):
         if self._values:
@@ -217,31 +232,188 @@ class Resource(object):
         """
         return bool(self._dirty)
 
-    def refresh(self):
+    def refresh(self, skip_dirty=False):
         """
-        Refresh field values from server.
+        Refresh resource with data from the server.
+
+        :arg bool skip_dirty: If `True`, don't refresh field values with
+          unsaved changes.
         """
         response = self.session.get(self.uri)
-        self._load_values(response.json()[self.key])
+        self._load_values(response.json()[self.key], skip_dirty=skip_dirty)
 
     def save(self):
         """
-        Save any unsaved changes on this resource.
+        Send any unsaved changes on this resource to the server and refresh
+        with data from the server.
         """
         if self.dirty:
-            self.session.patch(self.uri,
-                               data={field.key: getattr(self, field.name)
-                                     for field in self._fields
-                                     if field.name in self._dirty})
-            self._dirty.clear()
+            data = {field.key: getattr(self, field.name)
+                    for field in self._fields
+                    if field.name in self._dirty}
+            response = self.session.patch(self.uri, data=data)
+            self._load_values(response.json()[self.key])
+        else:
+            self.refresh()
+
+    def save_fields(self, **values):
+        """
+        Send field values specified by keyword arguments to the server and
+        refresh with data from the server (skipping dirty field values).
+
+        Keyword arguments use Python names and values.
+        """
+        data = {field.key: field.from_python(values[field.name])
+                for field in self._fields
+                if field.name in values}
+        response = self.session.patch(self.uri, data=data)
+        self._load_values(response.json()[self.key], skip_dirty=True)
+
+
+class Task(object):
+    """
+    Represents a server task.
+
+    Instances are equiped with the parent resource which they use to query
+    task state. This means refreshing the parent resource is directly visible
+    on the task.
+    """
+    def __init__(self, resource):
+        self.resource = resource
+        # We use `_state` in `to_api`.
+        self._state = None
+
+    @classmethod
+    def from_api(cls, value, resource):
+        if value is None:
+            return None
+        # Task state is queried directly from the parent resource, so we can
+        # discard the value that is passed here.
+        return cls(resource)
+
+    @classmethod
+    def to_api(cls, task):
+        if task is None:
+            return None
+        return {'state': task._state}
+
+    @property
+    def _task(self):
+        return self.resource._values['task']
+
+    @property
+    def state(self):
+        """
+        Task state. Possible values are ``waiting``, ``running``, ``succes``,
+        and ``failure``.
+        """
+        return self._task['state']
+
+    @property
+    def waiting(self):
+        """
+        Whether or not task is in waiting state.
+        """
+        return self.state == 'waiting'
+
+    @property
+    def running(self):
+        """
+        Whether or not task is in running state.
+
+        If `True`, :attr:`progress` is set.
+        """
+        return self.state == 'running'
+
+    @property
+    def success(self):
+        """
+        Whether or not task is in success state.
+        """
+        return self.state == 'success'
+
+    @property
+    def failure(self):
+        """
+        Whether or not task is in failure state.
+
+        If `True`, :attr:`error` is set.
+        """
+        return self.state == 'failure'
+
+    @property
+    def error(self):
+        """
+        The error object as a :class:`.TaskError` if :attr:`state` is
+        ``failure``, `None` otherwise.
+        """
+        if not self.failure:
+            return None
+        error = self._task['error']
+        return TaskError(error['code'], error['message'])
+
+    @property
+    def progress(self):
+        """
+        Task progress in the range `0` to `100` if :attr:`state` is
+        ``running``, `None` otherwise.
+        """
+        return self._task.get('progress')
+
+    def wait_and_monitor(self):
+        """
+        Iterator, yielding :attr:`progress` while :attr:`state` is ``waiting``
+        or ``running``, polling the server every
+        :attr:`~manwe.default_config.TASK_POLL_WAIT` seconds.
+
+        After that, yield `100`, or raise :attr:`error` if :attr:`state` is
+        ``failure``.
+        """
+        wait_time = self.resource.session.config.TASK_POLL_WAIT
+        last_poll = time.time()
+
+        while self.waiting or self.running:
+            yield self.progress
+
+            # Some time might have been spent before the next yield is asked
+            # for, so instead of sleeping for `wait_time`, we sleep for the
+            # part of `wait_time` that is still left.
+            time.sleep(max(0, wait_time - (time.time() - last_poll)))
+
+            self.resource.refresh(skip_dirty=True)
+            last_poll = time.time()
+
+        if self.success:
+            yield 100
+        elif self.failure:
+            raise self.error
+
+    def wait(self):
+        """
+        Block while :attr:`state` is ``waiting`` or ``running``, polling the
+        server every :attr:`~manwe.default_config.TASK_POLL_WAIT` seconds.
+        """
+        for _ in self.wait_and_monitor():
+            pass
+
+    def resubmit(self):
+        """
+        Resubmit task.
+        """
+        self._state = 'submitted'
+        try:
+            self.resource.save_fields(task=self)
+        finally:
+            self._state = None
 
 
 class TaskedResource(Resource):
     """
     Base class for representing server resources with tasks.
     """
-    # Todo: Implement task specific functionality.
-    task = Task()
+    task = Custom(
+        Task.from_api, Task.to_api,
+        doc='Server task (:class:`Task` instance).')
 
 
 class ResourceCollection(object):

@@ -60,7 +60,7 @@ class Field(object):
         if self.key is None:
             self.key = self.name
 
-    def to_python(self, value, session=None):
+    def to_python(self, value, resource):
         """
         Convert API value to Python value.
 
@@ -112,14 +112,14 @@ class Link(Field):
     """
     Definition for a resource link.
     """
-    def __init__(self, resource_key, *args, **kwargs):
+    def __init__(self, resource_key, **kwargs):
         """
         :arg str resource_key: Key for the linked resource.
         """
         self.resource_key = resource_key
-        super(Link, self).__init__(*args, **kwargs)
+        super(Link, self).__init__(**kwargs)
 
-    def to_python(self, value, session):
+    def to_python(self, value, resource):
         """
         Create a :class:`resources.Resource` instance from the resource URI.
 
@@ -135,7 +135,7 @@ class Link(Field):
             uri = value['uri']
         else:
             uri = value
-        return getattr(session, self.resource_key)(uri)
+        return getattr(resource.session, self.resource_key)(uri)
 
     def from_python(self, value):
         """
@@ -147,7 +147,7 @@ class Link(Field):
 
 
 class DateTime(Field):
-    def to_python(self, value, session=None):
+    def to_python(self, value, resource):
         if value is None:
             return None
         return dateutil.parser.parse(value)
@@ -159,14 +159,14 @@ class DateTime(Field):
 
 
 class Blob(Field):
-    def to_python(self, value, session):
+    def to_python(self, value, resource):
         """
         Iterator over the data source data by chunks.
         """
         if value is None:
             return None
-        return session.get(value['uri'], stream=True).iter_content(
-            chunk_size=session.config.DATA_BUFFER_SIZE)
+        return resource.session.get(value['uri'], stream=True).iter_content(
+            chunk_size=resource.session.config.DATA_BUFFER_SIZE)
 
     def from_python(self, value):
         if value is None:
@@ -175,32 +175,27 @@ class Blob(Field):
 
 
 class Set(Field):
-    def __init__(self, field, *args, **kwargs):
+    def __init__(self, field, **kwargs):
         """
         :arg field: Field definition for the set members.
         :type field: :class:`Field`
         """
         self.field = field
-        super(Set, self).__init__(*args, **kwargs)
+        super(Set, self).__init__(**kwargs)
 
-    def to_python(self, value, session=None):
+    def to_python(self, value, resource):
         """
         Convert the set to an immutable `fronzenset`. See the
         :meth:`Field.to_python` docstring.
         """
         if value is None:
             return None
-        return frozenset(self.field.to_python(x, session) for x in value)
+        return frozenset(self.field.to_python(x, resource) for x in value)
 
     def from_python(self, value):
         if value is None:
             return None
         return [self.field.from_python(x) for x in value]
-
-
-class Task(Field):
-    # TODO: Do something more intelligent.
-    pass
 
 
 class Queries(Field):
@@ -213,7 +208,7 @@ class Queries(Field):
     As a Python value, we represent this as a dictionary with keys the query
     names and values the query expressions.
     """
-    def to_python(self, value, session=None):
+    def to_python(self, value, resource):
         if value is None:
             return None
         return {q['name']: q['expression'] for q in value}
@@ -222,3 +217,19 @@ class Queries(Field):
         if value is None:
             return None
         return [{'name': k, 'expression': v} for k, v in value.items()]
+
+
+class Custom(Field):
+    """
+    Custom field definitions are parameterized with conversion functions.
+    """
+    def __init__(self, from_api, to_api, **kwargs):
+        self._from_api = from_api
+        self._to_api = to_api
+        super(Custom, self).__init__(**kwargs)
+
+    def to_python(self, value, resource):
+        return self._from_api(value, resource)
+
+    def from_python(self, value):
+        return self._to_api(value)
