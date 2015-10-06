@@ -7,7 +7,7 @@ Here you can see the full list of changes between each Manwë release.
 Version 1.3.0
 -------------
 
-Release date to be decided.
+Released on October 6th 2015.
 
 - Bump API compatibility to `>=3.0.0,<4.0.0`.
 - Wait for annotation task to complete in command line interface.
