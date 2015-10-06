@@ -4,10 +4,18 @@ Changelog
 Here you can see the full list of changes between each Manwë release.
 
 
-Version 1.2.2
+Version 1.3.0
 -------------
 
 Release date to be decided.
+
+- Bump API compatibility to `>=3.0.0,<4.0.0`.
+- Wait for annotation task to complete in command line interface.
+- Resource tasks (get state, wait for completion, resubmit).
+- Ability to save ad-hoc specified field values
+  (:meth:`.Resource.save_fields`).
+- Refresh fields on save.
+- Optionally skip dirty fields in refresh.
 
 
 Version 1.2.1
