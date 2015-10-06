@@ -109,12 +109,24 @@ def show_sample(session, uri):
     for variation in session.variations(sample=sample):
         print
         print 'Variation:   %s' % variation.uri
-        print 'State:       %s' % ('imported' if variation.task['done'] else 'not imported')
+        task = variation.task
+        if task.running:
+            print 'Task state:  %s (%d%%)' % (task.state, task.progress)
+        else:
+            print 'Task state:  %s' % task.state
+        if task.failure:
+            print 'Task error:  %s' % task.error.message
 
     for coverage in session.coverages(sample=sample):
         print
         print 'Coverage:    %s' % coverage.uri
-        print 'State:       %s' % ('imported' if coverage.task['done'] else 'not imported')
+        task = coverage.task
+        if task.running:
+            print 'Task state:  %s (%d%%)' % (task.state, task.progress)
+        else:
+            print 'Task state:  %s' % task.state
+        if task.failure:
+            print 'Task error:  %s' % task.error.message
 
 
 def activate_sample(session, uri):
