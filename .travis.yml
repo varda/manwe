@@ -1,5 +1,9 @@
 # Validate this file using http://lint.travis-ci.org/
 language: python
+sudo: false
+cache:
+  directories:
+    - $HOME/.cache/pip
 python:
   - "2.7"
 install:
